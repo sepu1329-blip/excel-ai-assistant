@@ -47,6 +47,30 @@ body {
   position: relative;
 }
 
+/* App Brand Header */
+.app-brand-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  background-color: var(--surface-color);
+  border-bottom: 2px solid var(--primary-color);
+}
+
+.brand-logo {
+  height: 24px;
+  width: 24px;
+  margin-right: 8px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.brand-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
 .view {
   flex: 1;
   display: flex;

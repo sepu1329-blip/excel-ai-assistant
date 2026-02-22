@@ -9,10 +9,10 @@
   <Version>1.0.0.0</Version>
   <ProviderName>sepu13</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Gemini AI Assistant"/>
+  <DisplayName DefaultValue="Press AI"/>
   <Description DefaultValue="An AI assistant powered by Gemini API for Excel."/>
-  <IconUrl DefaultValue="https://raw.githubusercontent.com/google/material-design-icons/master/png/action/extension/materialicons/48dp/2x/baseline_extension_black_48dp.png"/>
-  <HighResolutionIconUrl DefaultValue="https://raw.githubusercontent.com/google/material-design-icons/master/png/action/extension/materialicons/48dp/2x/baseline_extension_black_48dp.png"/>
+  <IconUrl DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
+  <HighResolutionIconUrl DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
   <SupportUrl DefaultValue="https://github.com/sepu13/excel-ai-assistant"/>
   <AppDomains>
     <AppDomain>https://sepu1329-blip.github.io</AppDomain>
@@ -66,22 +66,22 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://raw.githubusercontent.com/google/material-design-icons/master/png/action/extension/materialicons/48dp/1x/baseline_extension_black_48dp.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://raw.githubusercontent.com/google/material-design-icons/master/png/action/extension/materialicons/48dp/1x/baseline_extension_black_48dp.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://raw.githubusercontent.com/google/material-design-icons/master/png/action/extension/materialicons/48dp/2x/baseline_extension_black_48dp.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
       </bt:Images>
       <bt:Urls>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/sepu1329-blip/excel-ai-assistant"/>
         <bt:Url id="Taskpane.Url" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/index.html"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Gemini AI Assistant"/>
-        <bt:String id="CommandsGroup.Label" DefaultValue="Gemini AI"/>
+        <bt:String id="GetStarted.Title" DefaultValue="Press AI"/>
+        <bt:String id="CommandsGroup.Label" DefaultValue="Press AI"/>
         <bt:String id="TaskpaneButton.Label" DefaultValue="Show AI Assistant"/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="GetStarted.Description" DefaultValue="Your AI assistant powered by Gemini API."/>
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to Show the Gemini AI Assistant"/>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to Show the Press AI Assistant"/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

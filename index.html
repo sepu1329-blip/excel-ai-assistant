@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=Edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gemini AI Assistant</title>
+  <title>Press AI</title>
 
   <!-- Office JavaScript API -->
   <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
@@ -23,6 +23,12 @@
 
 <body class="ms-font-m">
   <div id="app" class="app-container">
+
+    <!-- App Brand Top Header -->
+    <div class="app-brand-header">
+      <img src="assets/PressAI_Re.png" alt="Press AI Logo" class="brand-logo" />
+      <span class="brand-title">Press AI</span>
+    </div>
 
     <!-- Settings View -->
     <div id="settings-view" class="view visible">
@@ -73,7 +79,7 @@
     <!-- Main Chat View -->
     <div id="chat-view" class="view hidden">
       <div class="header chat-header">
-        <h1>Press AI</h1>
+        <h1>AI assistant</h1>
         <div class="header-actions">
           <button id="clear-chat-btn" class="icon-btn" title="Clear Chat">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -125,7 +131,7 @@
       <!-- Chat History -->
       <div id="chat-history" class="chat-history">
         <div class="message system">
-          <p>AI assistant</p>
+          <p>환영합니다! 무엇이든 물어보거나 Agent 모드를 통해 엑셀을 조작해보세요.</p>
         </div>
       </div>
 
