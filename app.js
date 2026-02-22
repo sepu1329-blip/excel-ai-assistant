@@ -40,9 +40,14 @@ function initApp() {
 
     // Prompt Management Elements
     const addPromptBtn = document.getElementById('add-prompt-btn');
+    const updatePromptBtn = document.getElementById('update-prompt-btn');
+    const cancelEditBtn = document.getElementById('cancel-edit-btn');
     const newPromptNameInput = document.getElementById('new-prompt-name');
     const newPromptTextInput = document.getElementById('new-prompt-text');
     const promptListEl = document.getElementById('prompt-list');
+
+    // Additional Nav
+    const homeBtn = document.getElementById('home-btn');
 
     let editingPromptId = null; // Track which prompt is being edited
 
@@ -92,6 +97,14 @@ function initApp() {
         }
     });
 
+    homeBtn.addEventListener('click', () => {
+        if (!state.apiKey) {
+            alert('먼저 API Key를 저장해주세요.');
+            return;
+        }
+        showView('chat');
+    });
+
     settingsBtn.addEventListener('click', () => {
         showView('settings');
     });
@@ -130,32 +143,53 @@ function initApp() {
         const text = newPromptTextInput.value.trim();
 
         if (name && text) {
-            if (editingPromptId) {
-                // Update existing
-                const pIndex = state.savedPrompts.findIndex(p => p.id === editingPromptId);
-                if (pIndex > -1) {
-                    state.savedPrompts[pIndex].name = name;
-                    state.savedPrompts[pIndex].text = text;
-                }
-                editingPromptId = null;
-                addPromptBtn.textContent = "추가";
-            } else {
-                // Add new
-                const newPrompt = {
-                    id: 'p_' + Date.now(),
-                    name: name,
-                    text: text
-                };
-                state.savedPrompts.push(newPrompt);
-            }
-            savePromptsToStorage();
-            renderPrompts();
-            newPromptNameInput.value = '';
-            newPromptTextInput.value = '';
+            // Add new
+            const newPrompt = {
+                id: 'p_' + Date.now(),
+                name: name,
+                text: text
+            };
+            state.savedPrompts.push(newPrompt);
+            savePromptsAndRender();
         } else {
             alert('프롬프트 이름과 내용을 모두 입력해주세요.');
         }
     });
+
+    updatePromptBtn.addEventListener('click', () => {
+        if (!editingPromptId) return;
+        const name = newPromptNameInput.value.trim();
+        const text = newPromptTextInput.value.trim();
+
+        if (name && text) {
+            const pIndex = state.savedPrompts.findIndex(p => p.id === editingPromptId);
+            if (pIndex > -1) {
+                state.savedPrompts[pIndex].name = name;
+                state.savedPrompts[pIndex].text = text;
+            }
+            savePromptsAndRender();
+        } else {
+            alert('프롬프트 이름과 내용을 모두 입력해주세요.');
+        }
+    });
+
+    cancelEditBtn.addEventListener('click', resetPromptForm);
+
+    function resetPromptForm() {
+        editingPromptId = null;
+        newPromptNameInput.value = '';
+        newPromptTextInput.value = '';
+        addPromptBtn.classList.remove('hidden');
+        updatePromptBtn.classList.add('hidden');
+        cancelEditBtn.classList.add('hidden');
+        document.querySelectorAll('.prompt-item').forEach(el => el.classList.remove('editing'));
+    }
+
+    function savePromptsAndRender() {
+        savePromptsToStorage();
+        renderPrompts();
+        resetPromptForm();
+    }
 
     promptListEl.addEventListener('click', (e) => {
         const targetBtn = e.target.closest('.prompt-action-btn');
@@ -167,10 +201,7 @@ function initApp() {
             if (confirm('이 프롬프트를 삭제하시겠습니까?')) {
                 state.savedPrompts = state.savedPrompts.filter(p => p.id !== id);
                 if (editingPromptId === id) {
-                    editingPromptId = null;
-                    addPromptBtn.textContent = "추가";
-                    newPromptNameInput.value = '';
-                    newPromptTextInput.value = '';
+                    resetPromptForm();
                 }
                 savePromptsToStorage();
                 renderPrompts();
@@ -186,7 +217,11 @@ function initApp() {
                 editingPromptId = id;
                 newPromptNameInput.value = prompt.name;
                 newPromptTextInput.value = prompt.text;
-                addPromptBtn.textContent = "수정";
+
+                // Toggle Buttons
+                addPromptBtn.classList.add('hidden');
+                updatePromptBtn.classList.remove('hidden');
+                cancelEditBtn.classList.remove('hidden');
 
                 // Highlight selected item
                 document.querySelectorAll('.prompt-item').forEach(el => el.classList.remove('editing'));

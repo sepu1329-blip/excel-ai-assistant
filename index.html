@@ -28,6 +28,15 @@
     <div id="settings-view" class="view visible">
       <div class="header">
         <h1>Settings</h1>
+        <div class="header-actions">
+          <button id="home-btn" class="icon-btn" title="홈으로 돌아가기">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="content">
         <div class="form-group">
@@ -47,7 +56,11 @@
           <div class="add-prompt-area">
             <input type="text" id="new-prompt-name" placeholder="프롬프트 이름" />
             <input type="text" id="new-prompt-text" placeholder="프롬프트 내용" />
-            <button id="add-prompt-btn" class="secondary-btn">추가</button>
+            <div class="prompt-form-actions">
+              <button id="add-prompt-btn" class="secondary-btn">➕ 추가</button>
+              <button id="update-prompt-btn" class="secondary-btn hidden">✏️ 수정</button>
+              <button id="cancel-edit-btn" class="secondary-btn hidden">❌ 취소</button>
+            </div>
           </div>
           <div id="prompt-list" class="prompt-list">
             <!-- Prompts will be loaded here dynamically -->

@@ -168,6 +168,15 @@ body {
   margin-bottom: 16px;
 }
 
+.prompt-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.prompt-form-actions button {
+  flex: 1;
+}
+
 .secondary-btn {
   background-color: var(--surface-color);
   color: var(--text-primary);
