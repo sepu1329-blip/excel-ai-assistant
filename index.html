@@ -24,16 +24,13 @@
 <body class="ms-font-m">
   <div id="app" class="app-container">
 
-    <!-- App Brand Top Header -->
-    <div class="app-brand-header">
-      <img src="assets/PressAI_Re.png" alt="Press AI Logo" class="brand-logo" />
-      <span class="brand-title">Press AI</span>
-    </div>
-
     <!-- Settings View -->
     <div id="settings-view" class="view visible">
       <div class="header">
-        <h1>Settings</h1>
+        <div class="header-brand">
+          <img src="assets/PressAI_Re.png" alt="Press AI Logo" class="brand-logo" />
+          <h1>Press AI</h1>
+        </div>
         <div class="header-actions">
           <button id="home-btn" class="icon-btn" title="홈으로 돌아가기">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -79,7 +76,10 @@
     <!-- Main Chat View -->
     <div id="chat-view" class="view hidden">
       <div class="header chat-header">
-        <h1>AI assistant</h1>
+        <div class="header-brand">
+          <img src="assets/PressAI_Re.png" alt="Press AI Logo" class="brand-logo" />
+          <h1>Press AI</h1>
+        </div>
         <div class="header-actions">
           <button id="clear-chat-btn" class="icon-btn" title="Clear Chat">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
