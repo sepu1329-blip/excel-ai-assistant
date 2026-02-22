@@ -31,17 +31,29 @@
       </div>
       <div class="content">
         <div class="form-group">
-          <label for="api-key">Gemini API Key</label>
+          <label for="api-key">🔑 Gemini API Key</label>
           <input type="password" id="api-key" placeholder="AIzaSy..." />
         </div>
         <div class="form-group">
-          <label for="model-select">Model</label>
+          <label for="model-select">🧠 모델 선택 (Model)</label>
           <select id="model-select">
             <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
             <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
           </select>
         </div>
-        <button id="save-settings-btn" class="primary-btn">Save & Start</button>
+        <hr class="settings-divider" />
+        <div class="form-group">
+          <label>📝 자주 쓰는 프롬프트 관리</label>
+          <div class="add-prompt-area">
+            <input type="text" id="new-prompt-name" placeholder="프롬프트 이름" />
+            <input type="text" id="new-prompt-text" placeholder="프롬프트 내용" />
+            <button id="add-prompt-btn" class="secondary-btn">추가</button>
+          </div>
+          <div id="prompt-list" class="prompt-list">
+            <!-- Prompts will be loaded here dynamically -->
+          </div>
+        </div>
+        <button id="save-settings-btn" class="primary-btn">저장 및 시작</button>
       </div>
     </div>
 
@@ -75,27 +87,24 @@
       <div class="controls-panel">
         <div class="controls-row">
           <div class="control-group">
-            <span class="control-label">Mode:</span>
+            <span class="control-label">🎯 모드:</span>
             <div class="toggle-group mode-toggle">
-              <button class="toggle-btn active" data-mode="ask">Ask</button>
-              <button class="toggle-btn" data-mode="agent">Agent</button>
+              <button class="toggle-btn active" data-mode="ask">질문(Ask)</button>
+              <button class="toggle-btn" data-mode="agent">동작(Agent)</button>
             </div>
           </div>
           <div class="control-group">
-            <span class="control-label">Context:</span>
+            <span class="control-label">📍 선택:</span>
             <div class="toggle-group context-toggle">
-              <button class="toggle-btn active" data-context="cell">Cell</button>
-              <button class="toggle-btn" data-context="sheet">Sheet</button>
+              <button class="toggle-btn active" data-context="cell">단일 셀</button>
+              <button class="toggle-btn" data-context="sheet">전체 시트</button>
             </div>
           </div>
         </div>
         <div class="prompts-row">
           <select id="saved-prompts-select">
-            <option value="">-- Choose a Saved Prompt --</option>
-            <option value="선택한 영역의 데이터들을 표 형태로 깔끔하게 정리해줘.">표 형태로 정리하기</option>
-            <option value="현재 영역의 데이터들을 분석하고 시사점 요약해줘.">데이터 요약 분석하기</option>
-            <option value="선택한 영역의 바깥쪽 실선 테두리를 적용해줘.">영역 바깥쪽 실선 테두리</option>
-            <option value="값이 비어있는 셀을 찾아서 노란색으로 칠해줘.">빈 셀 노란색 칠하기</option>
+            <option value="">-- 자주 쓰는 프롬프트 선택 --</option>
+            <!-- Prompts will be dynamically populated here -->
           </select>
         </div>
       </div>
@@ -103,13 +112,13 @@
       <!-- Chat History -->
       <div id="chat-history" class="chat-history">
         <div class="message system">
-          <p>Welcome! Ask me anything or switch to Agent mode to modify the sheet.</p>
+          <p>환영합니다! 무엇이든 물어보거나 Agent 모드를 통해 엑셀을 조작해보세요.</p>
         </div>
       </div>
 
       <!-- Chat Input -->
       <div class="chat-input-area">
-        <textarea id="chat-input" placeholder="Ask Gemini..." rows="2"></textarea>
+        <textarea id="chat-input" placeholder="여기에 요청사항을 입력하세요..." rows="2"></textarea>
         <button id="send-btn" class="send-btn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="22" y1="2" x2="11" y2="13"></line>

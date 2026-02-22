@@ -12,8 +12,16 @@ const state = {
     model: 'gemini-2.5-flash',
     mode: 'ask', // 'ask' or 'agent'
     context: 'cell', // 'cell' or 'sheet'
-    chatHistory: [] // store messages
+    chatHistory: [], // store messages
+    savedPrompts: [] // array of { id, name, text }
 };
+
+const defaultPrompts = [
+    { id: 'p1', name: '표 형태로 정리하기', text: '선택한 영역의 데이터들을 표 형태로 깔끔하게 정리해줘.' },
+    { id: 'p2', name: '데이터 요약 분석하기', text: '현재 영역의 데이터들을 분석하고 시사점 요약해줘.' },
+    { id: 'p3', name: '영역 바깥쪽 실선 테두리', text: '선택한 영역의 바깥쪽 실선 테두리를 적용해줘.' },
+    { id: 'p4', name: '빈 셀 노란색 칠하기', text: '값이 비어있는 셀을 찾아서 노란색으로 칠해줘.' }
+];
 
 function initApp() {
     // DOM Elements
@@ -30,6 +38,12 @@ function initApp() {
     const sendBtn = document.getElementById('send-btn');
     const savedPromptsSelect = document.getElementById('saved-prompts-select');
 
+    // Prompt Management Elements
+    const addPromptBtn = document.getElementById('add-prompt-btn');
+    const newPromptNameInput = document.getElementById('new-prompt-name');
+    const newPromptTextInput = document.getElementById('new-prompt-text');
+    const promptListEl = document.getElementById('prompt-list');
+
     // Toggles
     const modeBtns = document.querySelectorAll('.mode-toggle .toggle-btn');
     const contextBtns = document.querySelectorAll('.context-toggle .toggle-btn');
@@ -37,6 +51,20 @@ function initApp() {
     // Load saved settings
     const savedKey = localStorage.getItem('gemini_api_key');
     const savedModel = localStorage.getItem('gemini_model');
+    const savedPromptsLocal = localStorage.getItem('gemini_prompts');
+
+    // Initialize Prompts
+    if (savedPromptsLocal) {
+        try {
+            state.savedPrompts = JSON.parse(savedPromptsLocal);
+        } catch (e) {
+            state.savedPrompts = [...defaultPrompts];
+        }
+    } else {
+        state.savedPrompts = [...defaultPrompts];
+        savePromptsToStorage();
+    }
+    renderPrompts();
 
     if (savedKey) {
         state.apiKey = savedKey;
@@ -94,12 +122,81 @@ function initApp() {
         });
     });
 
-    // Saved Prompts logic
+    // Prompt Management Logic
+    addPromptBtn.addEventListener('click', () => {
+        const name = newPromptNameInput.value.trim();
+        const text = newPromptTextInput.value.trim();
+
+        if (name && text) {
+            const newPrompt = {
+                id: 'p_' + Date.now(),
+                name: name,
+                text: text
+            };
+            state.savedPrompts.push(newPrompt);
+            savePromptsToStorage();
+            renderPrompts();
+            newPromptNameInput.value = '';
+            newPromptTextInput.value = '';
+        } else {
+            alert('프롬프트 이름과 내용을 모두 입력해주세요.');
+        }
+    });
+
+    promptListEl.addEventListener('click', (e) => {
+        const target = e.target.closest('.prompt-action-btn');
+        if (!target) return;
+
+        const id = target.dataset.id;
+        if (target.classList.contains('delete')) {
+            if (confirm('이 프롬프트를 삭제하시겠습니까?')) {
+                state.savedPrompts = state.savedPrompts.filter(p => p.id !== id);
+                savePromptsToStorage();
+                renderPrompts();
+            }
+        }
+    });
+
+    function savePromptsToStorage() {
+        localStorage.setItem('gemini_prompts', JSON.stringify(state.savedPrompts));
+    }
+
+    function renderPrompts() {
+        // Render Settings List
+        promptListEl.innerHTML = '';
+        state.savedPrompts.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'prompt-item';
+            div.innerHTML = `
+                <div class="prompt-info">
+                    <span class="prompt-name">${p.name}</span>
+                    <span class="prompt-text">${p.text}</span>
+                </div>
+                <div class="prompt-actions">
+                    <button class="prompt-action-btn delete" data-id="${p.id}" title="삭제">❌</button>
+                </div>
+            `;
+            promptListEl.appendChild(div);
+        });
+
+        // Render Dropdown options
+        savedPromptsSelect.innerHTML = '<option value="">-- 자주 쓰는 프롬프트 선택 --</option>';
+        state.savedPrompts.forEach(p => {
+            const option = document.createElement('option');
+            option.value = p.text;
+            option.textContent = p.name;
+            savedPromptsSelect.appendChild(option);
+        });
+    }
+
+    // Saved Prompts logic (Dropdown Change)
     savedPromptsSelect.addEventListener('change', (e) => {
         const text = e.target.value;
         if (text) {
             chatInput.value = text;
         }
+        // Reset dropdown to default after selection
+        savedPromptsSelect.value = "";
     });
 
     // Chat input handling
