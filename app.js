@@ -28,6 +28,7 @@ function initApp() {
     const chatHistoryEl = document.getElementById('chat-history');
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
+    const savedPromptsSelect = document.getElementById('saved-prompts-select');
 
     // Toggles
     const modeBtns = document.querySelectorAll('.mode-toggle .toggle-btn');
@@ -91,6 +92,14 @@ function initApp() {
             target.classList.add('active');
             state.context = target.dataset.context;
         });
+    });
+
+    // Saved Prompts logic
+    savedPromptsSelect.addEventListener('change', (e) => {
+        const text = e.target.value;
+        if (text) {
+            chatInput.value = text;
+        }
     });
 
     // Chat input handling

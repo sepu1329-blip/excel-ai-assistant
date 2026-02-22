@@ -30,11 +30,13 @@ body {
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(0,0,0,0.1);
+  background-color: rgba(0, 0, 0, 0.1);
   border-radius: 4px;
 }
 
@@ -162,18 +164,26 @@ body {
   gap: 12px;
 }
 
+.controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .control-group {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 .control-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .toggle-group {
@@ -186,8 +196,8 @@ body {
 .toggle-btn {
   background: transparent;
   border: none;
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 6px 10px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
   border-radius: 4px;
@@ -198,7 +208,29 @@ body {
 .toggle-btn.active {
   background-color: var(--surface-color);
   color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.prompts-row {
+  display: flex;
+  width: 100%;
+}
+
+.prompts-row select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-family: inherit;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.prompts-row select:focus {
+  border-color: var(--primary-color);
 }
 
 /* Chat History */
@@ -223,6 +255,7 @@ body {
 .message p {
   margin: 0 0 8px 0;
 }
+
 .message p:last-child {
   margin-bottom: 0;
 }
@@ -274,8 +307,14 @@ body {
   border-radius: 50%;
   animation: bounce 1.4s infinite ease-in-out both;
 }
-.dot:nth-child(1) { animation-delay: -0.32s; }
-.dot:nth-child(2) { animation-delay: -0.16s; }
+
+.dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 /* Code Blocks in markdown */
 pre {
@@ -287,6 +326,7 @@ pre {
   margin-top: 8px;
   margin-bottom: 8px;
 }
+
 code {
   font-family: monospace;
   font-size: 12px;
@@ -348,11 +388,26 @@ code {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+
+  40% {
+    transform: scale(1);
+  }
 }
