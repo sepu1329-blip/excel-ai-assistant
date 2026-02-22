@@ -4,9 +4,8 @@
           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
-          xsi:type="TaskPaneApp">
-  <Id>36b28a86-7a7d-4ba6-8cb9-3d1265886477</Id>
-  <Version>1.0.0.0</Version>
+  <Id>64ddad8f-3349-4ddb-a27e-6a9d4037c982</Id>
+  <Version>1.0.0.1</Version>
   <ProviderName>sepu13</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Press AI"/>
@@ -76,8 +75,8 @@
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Press AI"/>
-        <bt:String id="CommandsGroup.Label" DefaultValue="Press AI"/>
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Show AI Assistant"/>
+        <bt:String id="CommandsGroup.Label" DefaultValue="AI assist"/>
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Press AI"/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="GetStarted.Description" DefaultValue="Your AI assistant powered by Gemini API."/>
