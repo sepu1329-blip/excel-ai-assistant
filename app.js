@@ -22,21 +22,21 @@ function initApp() {
     const apiKeyInput = document.getElementById('api-key');
     const modelSelect = document.getElementById('model-select');
     const saveSettingsBtn = document.getElementById('save-settings-btn');
-    
+
     const settingsBtn = document.getElementById('settings-btn');
     const clearChatBtn = document.getElementById('clear-chat-btn');
     const chatHistoryEl = document.getElementById('chat-history');
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
-    
+
     // Toggles
     const modeBtns = document.querySelectorAll('.mode-toggle .toggle-btn');
     const contextBtns = document.querySelectorAll('.context-toggle .toggle-btn');
-    
+
     // Load saved settings
     const savedKey = localStorage.getItem('gemini_api_key');
     const savedModel = localStorage.getItem('gemini_model');
-    
+
     if (savedKey) {
         state.apiKey = savedKey;
         apiKeyInput.value = savedKey;
@@ -124,7 +124,7 @@ function initApp() {
         // Add user message to UI
         appendMessage('user', text);
         chatInput.value = '';
-        
+
         // Disable input while loading
         chatInput.disabled = true;
         sendBtn.disabled = true;
@@ -135,7 +135,7 @@ function initApp() {
         try {
             // 1. Gather context from Excel
             const excelContextData = await getExcelContext(state.context);
-            
+
             // 2. Call Gemini
             let systemInstruction = "";
             let promptText = "";
@@ -148,6 +148,7 @@ function initApp() {
 Supported actions:
 - {"action": "set_values", "range": "A1:B2", "values": [["1", "2"], ["3", "4"]]}
 - {"action": "format_color", "range": "A1:A5", "color": "#FF0000"} // Hex color
+- {"action": "format_borders", "range": "A1:B2", "style": "Continuous", "weight": "Thin"} // Available styles: None, Continuous, Dash, DashDot, DashDotDot, Dot, Double, SlantDashDot. Weights: Hairline, Thin, Medium, Thick
 - {"action": "clear_range", "range": "A1:Z100"}
 - {"action": "set_formula", "range": "C1", "formula": "=A1+B1"}
 DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array. If you cannot fulfill the request, output an empty array [].`;
@@ -155,7 +156,7 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
             }
 
             const responseText = await callGeminiAPI(systemInstruction, promptText);
-            
+
             // Remove loading
             document.getElementById(loadingId).remove();
 
@@ -167,12 +168,12 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
                     // Try to clean markdown block if the AI ignored instructions
                     let cleanJsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
                     const actions = JSON.parse(cleanJsonStr);
-                    
+
                     if (Array.isArray(actions) && actions.length > 0) {
                         await executeExcelActions(actions);
                         appendMessage('ai', `<p>✅ Executed ${actions.length} action(s) successfully.</p>`);
                     } else {
-                         appendMessage('ai', `<p>No valid actions found to apply.</p>`);
+                        appendMessage('ai', `<p>No valid actions found to apply.</p>`);
                     }
                 } catch (err) {
                     console.error("Agent JSON parsing error:", err, responseText);
@@ -194,13 +195,13 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
     function appendMessage(role, contentMarkup) {
         const div = document.createElement('div');
         div.className = `message ${role}`;
-        
+
         if (role === 'user') {
             div.textContent = contentMarkup; // User input is raw text
         } else {
             div.innerHTML = contentMarkup; // AI is parsed markdown / HTML
         }
-        
+
         chatHistoryEl.appendChild(div);
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
     }
@@ -236,7 +237,7 @@ async function getExcelContext(contextType) {
             }
             range.load("values, address");
             await context.sync();
-            
+
             let contextStr = `Range: ${range.address}\nValues: ${JSON.stringify(range.values)}`;
             resolve(contextStr);
         }).catch(reject);
@@ -251,17 +252,29 @@ async function executeExcelActions(actions) {
 
     return Excel.run(async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
-        
+
         for (const act of actions) {
             try {
                 if (!act.range) continue;
                 const range = sheet.getRange(act.range);
-                
+
                 if (act.action === 'set_values' && act.values) {
                     range.values = act.values;
-                } 
+                }
                 else if (act.action === 'format_color' && act.color) {
                     range.format.fill.color = act.color;
+                }
+                else if (act.action === 'format_borders') {
+                    const style = act.style || "Continuous";
+                    const weight = act.weight || "Thin";
+                    range.format.borders.getItem('EdgeTop').style = style;
+                    range.format.borders.getItem('EdgeTop').weight = weight;
+                    range.format.borders.getItem('EdgeBottom').style = style;
+                    range.format.borders.getItem('EdgeBottom').weight = weight;
+                    range.format.borders.getItem('EdgeLeft').style = style;
+                    range.format.borders.getItem('EdgeLeft').weight = weight;
+                    range.format.borders.getItem('EdgeRight').style = style;
+                    range.format.borders.getItem('EdgeRight').weight = weight;
                 }
                 else if (act.action === 'clear_range') {
                     range.clear();
@@ -281,7 +294,7 @@ async function executeExcelActions(actions) {
 
 async function callGeminiAPI(systemInstruction, userPrompt) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${state.model}:generateContent?key=${state.apiKey}`;
-    
+
     const body = {
         contents: [{
             role: "user",
