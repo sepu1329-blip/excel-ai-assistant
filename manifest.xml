@@ -5,8 +5,8 @@
           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
           xsi:type="TaskPaneApp">
-  <Id>64ddad8f-3349-4ddb-a27e-6a9d4037c982</Id>
-  <Version>1.0.0.1</Version>
+  <Id>acb3a019-9189-4d43-bbc1-a9cc6bfa0f41</Id>
+  <Version>1.0.0.2</Version>
   <ProviderName>sepu13</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Press AI"/>
