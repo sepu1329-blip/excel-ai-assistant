@@ -15,13 +15,13 @@
   <HighResolutionIconUrl DefaultValue="https://raw.githubusercontent.com/google/material-design-icons/master/png/action/extension/materialicons/48dp/2x/baseline_extension_black_48dp.png"/>
   <SupportUrl DefaultValue="https://github.com/sepu13/excel-ai-assistant"/>
   <AppDomains>
-    <AppDomain>https://sepu13.github.io</AppDomain>
+    <AppDomain>https://sepu1329-blip.github.io</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Workbook"/>
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://sepu13.github.io/excel-ai-assistant/index.html"/>
+    <SourceLocation DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/index.html"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -71,8 +71,8 @@
         <bt:Image id="Icon.80x80" DefaultValue="https://raw.githubusercontent.com/google/material-design-icons/master/png/action/extension/materialicons/48dp/2x/baseline_extension_black_48dp.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/sepu13/excel-ai-assistant"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://sepu13.github.io/excel-ai-assistant/index.html"/>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/sepu1329-blip/excel-ai-assistant"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/index.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Gemini AI Assistant"/>
