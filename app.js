@@ -334,6 +334,7 @@ Supported actions:
 - {"action": "format_borders", "range": "A1:B2", "style": "Continuous", "weight": "Thin", "border_types": ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight", "InsideHorizontal", "InsideVertical"]} // border_types is optional. For inner borders, use InsideHorizontal and InsideVertical. For outline, use EdgeTop, EdgeBottom, EdgeLeft, EdgeRight. Available styles: None, Continuous, Dash, DashDot, Dot, Double. Weights: Hairline, Thin, Medium, Thick
 - {"action": "clear_range", "range": "A1:Z100"}
 - {"action": "set_formula", "range": "C1", "formula": "=A1+B1"}
+- {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"} // Available types: ColumnClustered, Line, Pie, BarClustered, Area, Scatter
 DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
             }
@@ -466,6 +467,13 @@ async function executeExcelActions(actions) {
                 }
                 else if (act.action === 'set_formula' && act.formula) {
                     range.formulas = [[act.formula]];
+                }
+                else if (act.action === 'add_chart') {
+                    const chartType = act.type || "ColumnClustered";
+                    const chart = sheet.charts.add(chartType, range, "Auto");
+                    if (act.title) {
+                        chart.title.text = act.title;
+                    }
                 }
             } catch (err) {
                 console.error("Error executing action:", act, err);
