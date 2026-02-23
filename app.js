@@ -335,6 +335,7 @@ Supported actions:
 - {"action": "clear_range", "range": "A1:Z100"}
 - {"action": "set_formula", "range": "C1", "formula": "=A1+B1"}
 - {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"} // Available types: ColumnClustered, Line, Pie, BarClustered, Area, Scatter
+- {"action": "modify_chart", "chart_name": "Chart 1", "title": "New Title", "series_colors": ["#FF0000", "#00FF00"]} // chart_name is REQUIRED. series_colors is an optional array of hex color strings to apply to the data series in order.
 DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
             }
@@ -413,16 +414,28 @@ async function getExcelContext(contextType) {
         }
 
         Excel.run(async (context) => {
+            const sheet = context.workbook.worksheets.getActiveWorksheet();
             let range;
             if (contextType === 'cell') {
                 range = context.workbook.getSelectedRange();
             } else {
-                range = context.workbook.worksheets.getActiveWorksheet().getUsedRange();
+                range = sheet.getUsedRange();
             }
             range.load("values, address");
+
+            // Load charts
+            const charts = sheet.charts;
+            charts.load("items/name, items/title/text, items/type");
+
             await context.sync();
 
-            let contextStr = `Range: ${range.address}\nValues: ${JSON.stringify(range.values)}`;
+            let chartsInfo = charts.items.map(c => ({
+                name: c.name,
+                title: c.title ? c.title.text : "",
+                type: c.type
+            }));
+
+            let contextStr = `Range: ${range.address}\nValues: ${JSON.stringify(range.values)}\nCharts: ${JSON.stringify(chartsInfo)}`;
             resolve(contextStr);
         }).catch(reject);
     });
@@ -473,6 +486,27 @@ async function executeExcelActions(actions) {
                     const chart = sheet.charts.add(chartType, range, "Auto");
                     if (act.title) {
                         chart.title.text = act.title;
+                    }
+                }
+                else if (act.action === 'modify_chart' && act.chart_name) {
+                    const chart = sheet.charts.getItem(act.chart_name);
+
+                    if (act.title) {
+                        chart.title.text = act.title;
+                    }
+
+                    // Handle Series Colors Update
+                    if (act.series_colors && Array.isArray(act.series_colors)) {
+                        const seriesCollection = chart.series;
+                        seriesCollection.load("count");
+                        await context.sync(); // Sync to get the count
+
+                        for (let i = 0; i < act.series_colors.length; i++) {
+                            if (i < seriesCollection.count) {
+                                const seriesItem = seriesCollection.getItemAt(i);
+                                seriesItem.format.fill.setSolidColor(act.series_colors[i]);
+                            }
+                        }
                     }
                 }
             } catch (err) {
