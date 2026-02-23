@@ -331,7 +331,7 @@ function initApp() {
 Supported actions:
 - {"action": "set_values", "range": "A1:B2", "values": [["1", "2"], ["3", "4"]]}
 - {"action": "format_color", "range": "A1:A5", "color": "#FF0000"} // Hex color
-- {"action": "format_borders", "range": "A1:B2", "style": "Continuous", "weight": "Thin"} // Available styles: None, Continuous, Dash, DashDot, DashDotDot, Dot, Double, SlantDashDot. Weights: Hairline, Thin, Medium, Thick
+- {"action": "format_borders", "range": "A1:B2", "style": "Continuous", "weight": "Thin", "border_types": ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight", "InsideHorizontal", "InsideVertical"]} // border_types is optional. For inner borders, use InsideHorizontal and InsideVertical. For outline, use EdgeTop, EdgeBottom, EdgeLeft, EdgeRight. Available styles: None, Continuous, Dash, DashDot, Dot, Double. Weights: Hairline, Thin, Medium, Thick
 - {"action": "clear_range", "range": "A1:Z100"}
 - {"action": "set_formula", "range": "C1", "formula": "=A1+B1"}
 DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array. If you cannot fulfill the request, output an empty array [].`;
@@ -433,7 +433,7 @@ async function executeExcelActions(actions) {
         return;
     }
 
-    return Excel.run(async (context) => {
+    return Excel.run({ mergeUndoGroup: true }, async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
 
         for (const act of actions) {
@@ -450,14 +450,16 @@ async function executeExcelActions(actions) {
                 else if (act.action === 'format_borders') {
                     const style = act.style || "Continuous";
                     const weight = act.weight || "Thin";
-                    range.format.borders.getItem('EdgeTop').style = style;
-                    range.format.borders.getItem('EdgeTop').weight = weight;
-                    range.format.borders.getItem('EdgeBottom').style = style;
-                    range.format.borders.getItem('EdgeBottom').weight = weight;
-                    range.format.borders.getItem('EdgeLeft').style = style;
-                    range.format.borders.getItem('EdgeLeft').weight = weight;
-                    range.format.borders.getItem('EdgeRight').style = style;
-                    range.format.borders.getItem('EdgeRight').weight = weight;
+                    const borderTypes = act.border_types || ['EdgeTop', 'EdgeBottom', 'EdgeLeft', 'EdgeRight'];
+
+                    borderTypes.forEach(b => {
+                        try {
+                            range.format.borders.getItem(b).style = style;
+                            range.format.borders.getItem(b).weight = weight;
+                        } catch (err) {
+                            console.warn("Unsupported border type or error applying type:", b, err);
+                        }
+                    });
                 }
                 else if (act.action === 'clear_range') {
                     range.clear();
