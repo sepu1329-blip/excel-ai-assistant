@@ -332,8 +332,9 @@ function initApp() {
 1. CRITICAL: For ANY action that requires a "range", if the user does NOT explicitly specify a range (like A1:B10) in their prompt, you MUST use the "Range" value provided in the Context. DO NOT ask the user for a range if one is provided in the Context.
 
 2. If the user's request is unclear or missing necessary details (other than range), you MUST ask a clarifying question.
-   - Example: asked to remove duplicates, but didn't specify whether to just delete the copies (keeping the first occurrence) or to delete ALL duplicates including the original. ALWAYS ask this question for remove duplicates if not specified.
-   - Request format: {"action": "ask_question", "message": "중복된 항목의 첫 번째 값은 남길까요, 아니면 중복된 항목 전체를 삭제할까요?"}
+   - Example 1: asked to remove duplicates, but didn't specify whether to just delete the copies (keeping the first occurrence) or to delete ALL duplicates including the original. ALWAYS ask this question for remove duplicates if not specified.
+   - Example 2: asked to apply a format (like strikethrough, bold) to a specific line inside a multiline cell (e.g. "strike through the second line"). Office.js CANNOT format partial text natively. You MUST ask the user which line to modify if not specified, and use the 'modify_cell_lines' action to prepend text like '[취소] ' to that specific line.
+   - Request format: {"action": "ask_question", "message": "몇 번째 줄에 취소선(또는 강조) 표시를 추가할까요?"}
 
 3. If you have enough information, output a JSON array of actions.
 Supported actions:
@@ -356,6 +357,7 @@ Supported actions:
 - {"action": "set_print_area", "range": "A1:D20"}
 - {"action": "merge_identical_cells", "range": "A1:A10", "direction": "vertical"} // merges adjacent cells with identical values. direction: "vertical" or "horizontal"
 - {"action": "add_data_validation", "range": "A1:A10", "source": "1,2,3"} // Creates an in-cell dropdown with the comma-separated list or Excel range formula
+- {"action": "modify_cell_lines", "range": "A1:A2", "line_index": 1, "prefix": "[취소] ", "suffix": ""} // 0-based index of the line to modify in a multiline cell. A workaround for partial formatting constraints.
 
 DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array (or object for questions) directly. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
@@ -675,6 +677,31 @@ async function executeExcelActions(actions) {
                                 startC = endC + 1;
                             }
                         }
+                    }
+                }
+                else if (act.action === 'modify_cell_lines') {
+                    // Workaround for partial formatting: modify specific lines within a cell
+                    range.load("values");
+                    await context.sync();
+
+                    const values = range.values;
+                    let hasChanges = false;
+
+                    for (let r = 0; r < values.length; r++) {
+                        for (let c = 0; c < values[r].length; c++) {
+                            const cellValue = values[r][c];
+                            if (typeof cellValue === 'string' && cellValue.includes('\n')) {
+                                let lines = cellValue.split('\n');
+                                if (act.line_index !== undefined && act.line_index >= 0 && act.line_index < lines.length) {
+                                    lines[act.line_index] = (act.prefix || "") + lines[act.line_index] + (act.suffix || "");
+                                    values[r][c] = lines.join('\n');
+                                    hasChanges = true;
+                                }
+                            }
+                        }
+                    }
+                    if (hasChanges) {
+                        range.values = values;
                     }
                 }
             } catch (err) {
