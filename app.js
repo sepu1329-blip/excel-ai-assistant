@@ -329,12 +329,13 @@ function initApp() {
             } else { // Agent mode
                 systemInstruction = `You are an Excel Agent. You must respond with EITHER a valid JSON array of actions to modify the spreadsheet OR a valid JSON object to ask for more information.
 
-1. If the user's request is unclear or missing necessary details, you MUST ask a clarifying question.
-   - Example 1: asked to remove duplicates but no range specified AND you can't infer it from Context.
-   - Example 2: asked to remove duplicates, but didn't specify whether to just delete the copies (keeping the first occurrence) or to delete ALL duplicates including the original. ALWAYS ask this question for remove duplicates if not specified.
-   - Request format: {"action": "ask_question", "message": "중복을 제거할 범위를 알려주시고, 첫 번째 값은 남길까요 아니면 중복된 값을 모두 삭제할까요?"}
+1. CRITICAL: For ANY action that requires a "range", if the user does NOT explicitly specify a range (like A1:B10) in their prompt, you MUST use the "Range" value provided in the Context. DO NOT ask the user for a range if one is provided in the Context.
 
-2. If you have enough information, output a JSON array of actions.
+2. If the user's request is unclear or missing necessary details (other than range), you MUST ask a clarifying question.
+   - Example: asked to remove duplicates, but didn't specify whether to just delete the copies (keeping the first occurrence) or to delete ALL duplicates including the original. ALWAYS ask this question for remove duplicates if not specified.
+   - Request format: {"action": "ask_question", "message": "중복된 항목의 첫 번째 값은 남길까요, 아니면 중복된 항목 전체를 삭제할까요?"}
+
+3. If you have enough information, output a JSON array of actions.
 Supported actions:
 - {"action": "set_values", "range": "A1:B2", "values": [["1", "2"], ["3", "4"]]}
 - {"action": "format_color", "range": "A1:A5", "color": "#FF0000"}
@@ -347,7 +348,7 @@ Supported actions:
 - {"action": "set_column_width", "range": "A1:C1", "width": 100}
 - {"action": "hide_rows", "range": "A1:A5", "hidden": true}
 - {"action": "hide_columns", "range": "A1:C1", "hidden": true}
-- {"action": "remove_duplicates", "range": "A1:C10", "columns": [0, 1], "includesHeader": false}
+- {"action": "remove_duplicates", "range": "A1:C10", "columns": [0, 1], "includesHeader": false, "keepFirst": true} // keepFirst should be true to keep the original value, false to delete all instances.
 
 DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array (or object for questions) directly. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
@@ -518,19 +519,52 @@ async function executeExcelActions(actions) {
                 else if (act.action === 'remove_duplicates') {
                     // Office.js 'removeDuplicates' expects (columns: number[], includesHeader: boolean)
                     // The 'columns' array should contain the 0-indexed column numbers to use for identifying duplicates.
+                    // By default, Excel's removeDuplicates keeps the *first* occurrence.
+                    // If the user wants to delete ALL occurrences (keepFirst: false), this requires custom logic.
+
                     let columns = act.columns;
                     const includesHeader = act.includesHeader === true;
+                    const keepFirst = act.keepFirst !== false; // defaults to true
 
                     if (!columns || columns.length === 0) {
-                        // Dynamically determine index array [0, 1, 2, ...] based on the column count of the range
                         range.load("columnCount");
                         await context.sync();
                         columns = Array.from({ length: range.columnCount }, (_, i) => i);
                     }
 
-                    // Actually perform the removal via Office.js
-                    const result = range.removeDuplicates(columns, includesHeader);
-                    result.load("removed");
+                    if (keepFirst) {
+                        // Native Excel behavior
+                        const result = range.removeDuplicates(columns, includesHeader);
+                        result.load("removed");
+                    } else {
+                        // Delete ALL duplicates (including the original)
+                        range.load("values, rowCount");
+                        await context.sync();
+
+                        const values = range.values;
+                        const startIndex = includesHeader ? 1 : 0;
+                        const rowKeys = values.map(row => columns.map(c => row[c]).join('|'));
+
+                        // Count frequencies
+                        const freq = {};
+                        for (let i = startIndex; i < rowKeys.length; i++) {
+                            freq[rowKeys[i]] = (freq[rowKeys[i]] || 0) + 1;
+                        }
+
+                        // Collect rows to clear
+                        // We iterate backwards to avoid shifting row indices when performing operations
+                        // (Though we are using clear() + filter, a more robust way is clearing duplicate rows)
+                        let clearedCount = 0;
+                        for (let i = rowKeys.length - 1; i >= startIndex; i--) {
+                            if (freq[rowKeys[i]] > 1) {
+                                // Clear this row within the range
+                                const rowRange = range.getRow(i);
+                                rowRange.clear();
+                                clearedCount++;
+                            }
+                        }
+                        console.log(`Cleared ${clearedCount} rows of complete duplicates.`);
+                    }
                 }
                 else if (act.action === 'add_chart') {
                     const chartType = act.type || "ColumnClustered";
