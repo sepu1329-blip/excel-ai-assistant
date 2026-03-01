@@ -340,6 +340,8 @@ Supported actions:
 - {"action": "set_values", "range": "A1:B2", "values": [["1", "2"], ["3", "4"]]}
 - {"action": "format_color", "range": "A1:A5", "color": "#FF0000"}
 - {"action": "format_borders", "range": "A1:B2", "style": "Continuous", "weight": "Thin"}
+- {"action": "format_font", "range": "A1:A5", "strikethrough": true, "size": 14, "bold": true}
+- {"action": "format_alignment", "range": "A1:A5", "horizontal": "Center", "vertical": "Center"} // horizontal: Left|Center|Right. vertical: Top|Center|Bottom
 - {"action": "clear_range", "range": "A1:Z100"}
 - {"action": "set_formula", "range": "C1", "formula": "=A1+B1"}
 - {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"}
@@ -348,7 +350,12 @@ Supported actions:
 - {"action": "set_column_width", "range": "A1:C1", "width": 100}
 - {"action": "hide_rows", "range": "A1:A5", "hidden": true}
 - {"action": "hide_columns", "range": "A1:C1", "hidden": true}
-- {"action": "remove_duplicates", "range": "A1:C10", "columns": [0, 1], "includesHeader": false, "keepFirst": true} // keepFirst should be true to keep the original value, false to delete all instances.
+- {"action": "remove_duplicates", "range": "A1:C10", "columns": [0, 1], "includesHeader": false, "keepFirst": true}
+- {"action": "apply_filter", "range": "A1:C10", "column": 0, "criterion1": ">=3"} // custom filter on 0-based column. Uses operators like >, <, =, >=. Use "action": "clear_filter" to remove all filters.
+- {"action": "clear_filter"} // clears all filters on the sheet
+- {"action": "set_print_area", "range": "A1:D20"}
+- {"action": "merge_identical_cells", "range": "A1:A10", "direction": "vertical"} // merges adjacent cells with identical values. direction: "vertical" or "horizontal"
+- {"action": "add_data_validation", "range": "A1:A10", "source": "1,2,3"} // Creates an in-cell dropdown with the comma-separated list or Excel range formula
 
 DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array (or object for questions) directly. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
@@ -475,6 +482,11 @@ async function executeExcelActions(actions) {
 
         for (const act of actions) {
             try {
+                if (act.action === 'clear_filter') {
+                    sheet.autoFilter.clearCriteria();
+                    continue;
+                }
+
                 if (!act.range) continue;
                 const range = sheet.getRange(act.range);
 
@@ -483,6 +495,16 @@ async function executeExcelActions(actions) {
                 }
                 else if (act.action === 'format_color' && act.color) {
                     range.format.fill.color = act.color;
+                }
+                else if (act.action === 'format_font') {
+                    if (act.strikethrough !== undefined) range.format.font.strikethrough = act.strikethrough;
+                    if (act.size !== undefined) range.format.font.size = act.size;
+                    if (act.bold !== undefined) range.format.font.bold = act.bold;
+                    if (act.italic !== undefined) range.format.font.italic = act.italic;
+                }
+                else if (act.action === 'format_alignment') {
+                    if (act.horizontal) range.format.horizontalAlignment = act.horizontal;
+                    if (act.vertical) range.format.verticalAlignment = act.vertical;
                 }
                 else if (act.action === 'format_borders') {
                     const style = act.style || "Continuous";
@@ -585,11 +607,72 @@ async function executeExcelActions(actions) {
                         const seriesCollection = chart.series;
                         seriesCollection.load("count");
                         await context.sync(); // Sync to get the count
-
                         for (let i = 0; i < act.series_colors.length; i++) {
                             if (i < seriesCollection.count) {
                                 const seriesItem = seriesCollection.getItemAt(i);
                                 seriesItem.format.fill.setSolidColor(act.series_colors[i]);
+                            }
+                        }
+                    }
+                }
+                else if (act.action === 'add_data_validation') {
+                    // source should be a comma separated string like "1,2,3"
+                    range.dataValidation.rule = {
+                        list: {
+                            inCellDropDown: true,
+                            source: act.source
+                        }
+                    };
+                }
+                else if (act.action === 'set_print_area') {
+                    sheet.pageLayout.setPrintArea(range);
+                }
+                else if (act.action === 'apply_filter') {
+                    const colIndex = act.column || 0;
+                    if (act.criterion1) {
+                        sheet.autoFilter.apply(range, colIndex, {
+                            filterOn: Excel.FilterOn.custom,
+                            criterion1: act.criterion1
+                        });
+                    }
+                }
+                else if (act.action === 'merge_identical_cells') {
+                    const direction = act.direction || "vertical";
+                    range.load("values, rowCount, columnCount");
+                    await context.sync();
+
+                    const values = range.values;
+                    const rows = range.rowCount;
+                    const cols = range.columnCount;
+
+                    if (direction === "vertical") {
+                        for (let c = 0; c < cols; c++) {
+                            let startR = 0;
+                            while (startR < rows) {
+                                let endR = startR;
+                                while (endR + 1 < rows && values[endR][c] === values[endR + 1][c] && values[endR][c] !== "" && values[endR][c] != null) {
+                                    endR++;
+                                }
+                                if (endR > startR) {
+                                    const subRange = range.getCell(startR, c).getBoundingRect(range.getCell(endR, c));
+                                    subRange.merge(false);
+                                }
+                                startR = endR + 1;
+                            }
+                        }
+                    } else { // horizontal
+                        for (let r = 0; r < rows; r++) {
+                            let startC = 0;
+                            while (startC < cols) {
+                                let endC = startC;
+                                while (endC + 1 < cols && values[r][endC] === values[r][endC + 1] && values[r][endC] !== "" && values[r][endC] != null) {
+                                    endC++;
+                                }
+                                if (endC > startC) {
+                                    const subRange = range.getCell(r, startC).getBoundingRect(range.getCell(r, endC));
+                                    subRange.merge(false);
+                                }
+                                startC = endC + 1;
                             }
                         }
                     }
