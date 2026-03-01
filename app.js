@@ -352,7 +352,8 @@ Supported actions:
 - {"action": "hide_rows", "range": "A1:A5", "hidden": true}
 - {"action": "hide_columns", "range": "A1:C1", "hidden": true}
 - {"action": "remove_duplicates", "range": "A1:C10", "columns": [0, 1], "includesHeader": false, "keepFirst": true}
-- {"action": "apply_filter", "range": "A1:C10", "column": 0, "criterion1": ">=3"} // custom filter on 0-based column. Uses operators like >, <, =, >=. Use "action": "clear_filter" to remove all filters.
+- {"action": "apply_filter", "range": "A1:C10", "column": 0, "criterion1": ">=3"} // custom filter on 0-based column. Uses operators like >, <, =, >=.
+- {"action": "apply_filter", "range": "A1:C10"} // Just adding a filter dropdown to the top row without specific criteria. Do NOT ask for a column if the user just asks to "add a filter".
 - {"action": "clear_filter"} // clears all filters on the sheet
 - {"action": "set_print_area", "range": "A1:D20"}
 - {"action": "merge_identical_cells", "range": "A1:A10", "direction": "vertical"} // merges adjacent cells with identical values. direction: "vertical" or "horizontal"
@@ -630,12 +631,14 @@ async function executeExcelActions(actions) {
                     sheet.pageLayout.setPrintArea(range);
                 }
                 else if (act.action === 'apply_filter') {
-                    const colIndex = act.column || 0;
-                    if (act.criterion1) {
-                        sheet.autoFilter.apply(range, colIndex, {
+                    if (act.criterion1 !== undefined && act.column !== undefined) {
+                        sheet.autoFilter.apply(range, act.column, {
                             filterOn: Excel.FilterOn.custom,
                             criterion1: act.criterion1
                         });
+                    } else {
+                        // Just apply the filter dropdowns to the range without specific criteria
+                        sheet.autoFilter.apply(range);
                     }
                 }
                 else if (act.action === 'merge_identical_cells') {
