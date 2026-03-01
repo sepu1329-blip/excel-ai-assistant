@@ -330,24 +330,24 @@ function initApp() {
                 systemInstruction = `You are an Excel Agent. You must respond with EITHER a valid JSON array of actions to modify the spreadsheet OR a valid JSON object to ask for more information.
 
 1. If the user's request is unclear or missing necessary details, you MUST ask a clarifying question.
-   - Example missing details: asked to remove duplicates but no range specified AND you can't infer it from Context. 
-   - Note: If no range is specified by the user, you SHOULD default to using the 'Range' provided in the Context.
-   - Request format: {"action": "ask_question", "message": "중복을 제거할 데이터 범위가 어디인가요? (예: A1:D10)"}
+   - Example 1: asked to remove duplicates but no range specified AND you can't infer it from Context.
+   - Example 2: asked to remove duplicates, but didn't specify whether to just delete the copies (keeping the first occurrence) or to delete ALL duplicates including the original. ALWAYS ask this question for remove duplicates if not specified.
+   - Request format: {"action": "ask_question", "message": "중복을 제거할 범위를 알려주시고, 첫 번째 값은 남길까요 아니면 중복된 값을 모두 삭제할까요?"}
 
 2. If you have enough information, output a JSON array of actions.
 Supported actions:
 - {"action": "set_values", "range": "A1:B2", "values": [["1", "2"], ["3", "4"]]}
-- {"action": "format_color", "range": "A1:A5", "color": "#FF0000"} // Hex color
-- {"action": "format_borders", "range": "A1:B2", "style": "Continuous", "weight": "Thin"} // Available styles: None, Continuous, Dash. Weights: Hairline, Thin, Medium, Thick
+- {"action": "format_color", "range": "A1:A5", "color": "#FF0000"}
+- {"action": "format_borders", "range": "A1:B2", "style": "Continuous", "weight": "Thin"}
 - {"action": "clear_range", "range": "A1:Z100"}
 - {"action": "set_formula", "range": "C1", "formula": "=A1+B1"}
-- {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"} // Available types: ColumnClustered, Line, Pie
+- {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"}
 - {"action": "modify_chart", "chart_name": "Chart 1", "title": "New Title", "series_colors": ["#FF0000"]}
 - {"action": "set_row_height", "range": "A1:A5", "height": 50}
 - {"action": "set_column_width", "range": "A1:C1", "width": 100}
 - {"action": "hide_rows", "range": "A1:A5", "hidden": true}
 - {"action": "hide_columns", "range": "A1:C1", "hidden": true}
-- {"action": "remove_duplicates", "range": "A1:C10", "columns": [0, 1], "includesHeader": true} // columns is optional array of 0-based column indices to check for duplicates. includesHeader is optional boolean.
+- {"action": "remove_duplicates", "range": "A1:C10", "columns": [0, 1], "includesHeader": false}
 
 DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array (or object for questions) directly. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
@@ -516,21 +516,21 @@ async function executeExcelActions(actions) {
                     range.columnHidden = act.hidden;
                 }
                 else if (act.action === 'remove_duplicates') {
-                    // columns is an array of 0-based column indices relative to the range, e.g., [0, 1] means check 1st and 2nd col of the range
-                    // includesHeader is a boolean
+                    // Office.js 'removeDuplicates' expects (columns: number[], includesHeader: boolean)
+                    // The 'columns' array should contain the 0-indexed column numbers to use for identifying duplicates.
                     let columns = act.columns;
-                    const includesHeader = act.includesHeader !== undefined ? act.includesHeader : true;
+                    const includesHeader = act.includesHeader === true;
 
                     if (!columns || columns.length === 0) {
-                        // If no specific columns provided, default to all columns in the range
+                        // Dynamically determine index array [0, 1, 2, ...] based on the column count of the range
                         range.load("columnCount");
                         await context.sync();
-
                         columns = Array.from({ length: range.columnCount }, (_, i) => i);
                     }
 
-                    // removeDuplicates takes (columns: number[], includesHeader: boolean)
-                    range.removeDuplicates(columns, includesHeader);
+                    // Actually perform the removal via Office.js
+                    const result = range.removeDuplicates(columns, includesHeader);
+                    result.load("removed");
                 }
                 else if (act.action === 'add_chart') {
                     const chartType = act.type || "ColumnClustered";
