@@ -327,20 +327,27 @@ function initApp() {
                 systemInstruction = "You are a helpful Excel assistant. Answer questions based on the provided context.";
                 promptText = `Context:\n${excelContextData}\n\nUser Question:\n${text}`;
             } else { // Agent mode
-                systemInstruction = `You are an Excel Agent. You can ONLY respond with a valid JSON array of actions to modify the spreadsheet. 
+                systemInstruction = `You are an Excel Agent. You can ONLY respond with a valid JSON array of actions to modify the spreadsheet or a valid JSON object to ask for more information.
+
+If the user's request is unclear or missing necessary details (e.g., they ask to "remove duplicates" but don't specify the range, or ask to "sort" but don't specify the column), you MUST ask a clarifying question.
+- {"action": "ask_question", "message": "중복을 제거할 데이터 범위가 어디인가요? (예: A1:D10)"}
+
+If you have enough information to fulfill the request, output a JSON array of actions.
 Supported actions:
 - {"action": "set_values", "range": "A1:B2", "values": [["1", "2"], ["3", "4"]]}
 - {"action": "format_color", "range": "A1:A5", "color": "#FF0000"} // Hex color
-- {"action": "format_borders", "range": "A1:B2", "style": "Continuous", "weight": "Thin", "border_types": ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight", "InsideHorizontal", "InsideVertical"]} // border_types is optional. For inner borders, use InsideHorizontal and InsideVertical. For outline, use EdgeTop, EdgeBottom, EdgeLeft, EdgeRight. Available styles: None, Continuous, Dash, DashDot, Dot, Double. Weights: Hairline, Thin, Medium, Thick
+- {"action": "format_borders", "range": "A1:B2", "style": "Continuous", "weight": "Thin", "border_types": ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight", "InsideHorizontal", "InsideVertical"]}
 - {"action": "clear_range", "range": "A1:Z100"}
 - {"action": "set_formula", "range": "C1", "formula": "=A1+B1"}
-- {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"} // Available types: ColumnClustered, Line, Pie, BarClustered, Area, Scatter
-- {"action": "modify_chart", "chart_name": "Chart 1", "title": "New Title", "series_colors": ["#FF0000", "#00FF00"]} // chart_name is REQUIRED. series_colors is an optional array of hex color strings to apply to the data series in order.
+- {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"}
+- {"action": "modify_chart", "chart_name": "Chart 1", "title": "New Title", "series_colors": ["#FF0000", "#00FF00"]}
 - {"action": "set_row_height", "range": "A1:A5", "height": 50}
 - {"action": "set_column_width", "range": "A1:C1", "width": 100}
 - {"action": "hide_rows", "range": "A1:A5", "hidden": true}
 - {"action": "hide_columns", "range": "A1:C1", "hidden": true}
-DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array. If you cannot fulfill the request, output an empty array [].`;
+- {"action": "remove_duplicates", "range": "A1:C10", "columns": [0, 1], "includesHeader": true} // columns is optional array of 0-based column indices to check for duplicates. includesHeader is optional boolean.
+
+DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array (or object for questions) directly. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
             }
 
@@ -356,11 +363,14 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
                 try {
                     // Try to clean markdown block if the AI ignored instructions
                     let cleanJsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    const actions = JSON.parse(cleanJsonStr);
+                    const aiResponse = JSON.parse(cleanJsonStr);
 
-                    if (Array.isArray(actions) && actions.length > 0) {
-                        await executeExcelActions(actions);
-                        appendMessage('ai', `<p>✅ Executed ${actions.length} action(s) successfully.</p>`);
+                    if (Array.isArray(aiResponse) && aiResponse.length > 0) {
+                        await executeExcelActions(aiResponse);
+                        appendMessage('ai', `<p>✅ Executed ${aiResponse.length} action(s) successfully.</p>`);
+                    } else if (!Array.isArray(aiResponse) && aiResponse.action === 'ask_question') {
+                        // AI is asking for clarification
+                        appendMessage('ai', `<p>🙋 <b>질문:</b> ${aiResponse.message}</p>`);
                     } else {
                         appendMessage('ai', `<p>No valid actions found to apply.</p>`);
                     }
@@ -496,6 +506,23 @@ async function executeExcelActions(actions) {
                 }
                 else if (act.action === 'hide_columns' && act.hidden !== undefined) {
                     range.columnHidden = act.hidden;
+                }
+                else if (act.action === 'remove_duplicates') {
+                    // columns is an array of 0-based column indices, e.g., [0, 1] means check col A and B
+                    // includesHeader is a boolean
+                    const columns = act.columns || [];
+                    const includesHeader = act.includesHeader !== undefined ? act.includesHeader : true;
+
+                    if (columns.length > 0) {
+                        range.removeDuplicates(columns, includesHeader);
+                    } else {
+                        // If no specific columns provided, default to all columns in the range
+                        const numCols = range.getColumnCount();
+                        await context.sync();
+
+                        const allCols = Array.from({ length: numCols.value }, (_, i) => i);
+                        range.removeDuplicates(allCols, includesHeader);
+                    }
                 }
                 else if (act.action === 'add_chart') {
                     const chartType = act.type || "ColumnClustered";
