@@ -17,9 +17,9 @@ const state = {
 };
 
 const defaultPrompts = [
-    { id: 'p1', name: '표 형태로 정리하기', text: '선택한 영역의 데이터들을 표 형태로 깔끔하게 정리해줘.' },
-    { id: 'p2', name: '데이터 요약 분석하기', text: '현재 영역의 데이터들을 분석하고 시사점 요약해줘.' },
-    { id: 'p3', name: '영역 바깥쪽 실선 테두리', text: '선택한 영역의 바깥쪽 실선 테두리를 적용해줘.' },
+    { id: 'p1', name: '표 형태로 정리하기', text: '바깥쪽과 안쪽 세로 실선 / 안쪽 가로선 점선 테두리 적용.' },
+    { id: 'p2', name: '데이터 요약 분석하기', text: '현재 영역의 데이터를 분석하고 시사점 요약해줘.' },
+    { id: 'p3', name: '번역', text: '선택한 영역의 값들을 한글로 번역해줘' },
     { id: 'p4', name: '빈 셀 노란색 칠하기', text: '값이 비어있는 셀을 찾아서 노란색으로 칠해줘.' }
 ];
 
@@ -336,6 +336,10 @@ Supported actions:
 - {"action": "set_formula", "range": "C1", "formula": "=A1+B1"}
 - {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"} // Available types: ColumnClustered, Line, Pie, BarClustered, Area, Scatter
 - {"action": "modify_chart", "chart_name": "Chart 1", "title": "New Title", "series_colors": ["#FF0000", "#00FF00"]} // chart_name is REQUIRED. series_colors is an optional array of hex color strings to apply to the data series in order.
+- {"action": "set_row_height", "range": "A1:A5", "height": 50}
+- {"action": "set_column_width", "range": "A1:C1", "width": 100}
+- {"action": "hide_rows", "range": "A1:A5", "hidden": true}
+- {"action": "hide_columns", "range": "A1:C1", "hidden": true}
 DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
             }
@@ -480,6 +484,18 @@ async function executeExcelActions(actions) {
                 }
                 else if (act.action === 'set_formula' && act.formula) {
                     range.formulas = [[act.formula]];
+                }
+                else if (act.action === 'set_row_height' && act.height !== undefined) {
+                    range.format.rowHeight = act.height;
+                }
+                else if (act.action === 'set_column_width' && act.width !== undefined) {
+                    range.format.columnWidth = act.width;
+                }
+                else if (act.action === 'hide_rows' && act.hidden !== undefined) {
+                    range.rowHidden = act.hidden;
+                }
+                else if (act.action === 'hide_columns' && act.hidden !== undefined) {
+                    range.columnHidden = act.hidden;
                 }
                 else if (act.action === 'add_chart') {
                     const chartType = act.type || "ColumnClustered";
