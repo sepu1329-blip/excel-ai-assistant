@@ -516,21 +516,21 @@ async function executeExcelActions(actions) {
                     range.columnHidden = act.hidden;
                 }
                 else if (act.action === 'remove_duplicates') {
-                    // columns is an array of 0-based column indices, e.g., [0, 1] means check col A and B
+                    // columns is an array of 0-based column indices relative to the range, e.g., [0, 1] means check 1st and 2nd col of the range
                     // includesHeader is a boolean
-                    const columns = act.columns || [];
+                    let columns = act.columns;
                     const includesHeader = act.includesHeader !== undefined ? act.includesHeader : true;
 
-                    if (columns.length > 0) {
-                        range.removeDuplicates(columns, includesHeader);
-                    } else {
+                    if (!columns || columns.length === 0) {
                         // If no specific columns provided, default to all columns in the range
-                        const numCols = range.getColumnCount();
+                        range.load("columnCount");
                         await context.sync();
 
-                        const allCols = Array.from({ length: numCols.value }, (_, i) => i);
-                        range.removeDuplicates(allCols, includesHeader);
+                        columns = Array.from({ length: range.columnCount }, (_, i) => i);
                     }
+
+                    // removeDuplicates takes (columns: number[], includesHeader: boolean)
+                    range.removeDuplicates(columns, includesHeader);
                 }
                 else if (act.action === 'add_chart') {
                     const chartType = act.type || "ColumnClustered";
