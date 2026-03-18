@@ -6,13 +6,13 @@
           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
           xsi:type="TaskPaneApp">
   <Id>acb3a019-9189-4d43-bbc1-a9cc6bfa0f41</Id>
-  <Version>1.0.0.3</Version>
+  <Version>1.0.0.4</Version>
   <ProviderName>sepu13</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Press AI"/>
   <Description DefaultValue="An AI assistant powered by Gemini API for Excel."/>
-  <IconUrl DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
-  <HighResolutionIconUrl DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
+  <IconUrl DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/icon32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/icon80.png"/>
   <SupportUrl DefaultValue="https://github.com/sepu1329-blip/excel-ai-assistant"/>
   <AppDomains>
     <AppDomain>https://sepu1329-blip.github.io</AppDomain>
@@ -66,9 +66,9 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/PressAI_Re.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/icon16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/icon32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/icon80.png"/>
       </bt:Images>
       <bt:Urls>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/sepu1329-blip/excel-ai-assistant"/>
