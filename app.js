@@ -484,6 +484,9 @@ async function executeExcelActions(actions) {
     }
 
     return Excel.run({ mergeUndoGroup: true }, async (context) => {
+        if (context.workbook.setUndoDescription) {
+            context.workbook.setUndoDescription("AI 비서 동작");
+        }
         const sheet = context.workbook.worksheets.getActiveWorksheet();
 
         for (const act of actions) {
@@ -720,6 +723,18 @@ async function executeExcelActions(actions) {
                 console.error("Error executing action:", act, err);
             }
         }
+        
+        if (actions.length > 0) {
+            const lastAct = actions[actions.length - 1];
+            if (lastAct.range) {
+                try {
+                    sheet.getRange(lastAct.range).select();
+                } catch (e) {
+                    console.warn("Could not select range:", lastAct.range);
+                }
+            }
+        }
+
         await context.sync();
     });
 }
