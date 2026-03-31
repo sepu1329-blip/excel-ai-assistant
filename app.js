@@ -347,7 +347,10 @@ Supported actions:
 - {"action": "format_alignment", "range": "A1:A5", "horizontal": "Center", "vertical": "Center"} // horizontal: Left|Center|Right. vertical: Top|Center|Bottom
 - {"action": "clear_range", "range": "A1:Z100"}
 - {"action": "set_formula", "range": "C1", "formula": "=A1+B1"}
-- {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"}
+- {"action": "add_chart", "type": "ColumnClustered", "range": "A1:B5", "title": "My Chart"} // type: ColumnClustered, Line, Pie, BarClustered
+- {"action": "add_table", "range": "A1:C5", "has_header": true}
+- {"action": "insert_cells", "range": "A2:A2", "shift": "Down"} // shift: "Down" or "Right"
+- {"action": "delete_cells", "range": "A2:A2", "shift": "Up"} // shift: "Up" or "Left"
 - {"action": "modify_chart", "chart_name": "Chart 1", "title": "New Title", "series_colors": ["#FF0000"]}
 - {"action": "set_row_height", "range": "A1:A5", "height": 50}
 - {"action": "set_column_width", "range": "A1:C1", "width": 100}
@@ -483,7 +486,7 @@ async function executeExcelActions(actions) {
         return;
     }
 
-    return Excel.run({ delayForCellEdit: true, mergeUndoGroup: true }, async (context) => {
+    return Excel.run({ delayForCellEdit: true }, async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
 
         for (const act of actions) {
@@ -599,7 +602,21 @@ async function executeExcelActions(actions) {
                     const chart = sheet.charts.add(chartType, range, "Auto");
                     if (act.title) {
                         chart.title.text = act.title;
+                        chart.title.visible = true;
                     }
+                }
+                else if (act.action === 'add_table') {
+                    const hasHeader = act.has_header !== false;
+                    const newTable = sheet.tables.add(range, hasHeader);
+                    if (act.table_name) {
+                        newTable.name = act.table_name;
+                    }
+                }
+                else if (act.action === 'insert_cells') {
+                    range.insert(act.shift === "Right" ? "Right" : "Down");
+                }
+                else if (act.action === 'delete_cells') {
+                    range.delete(act.shift === "Left" ? "Left" : "Up");
                 }
                 else if (act.action === 'modify_chart' && act.chart_name) {
                     const chart = sheet.charts.getItem(act.chart_name);
