@@ -409,7 +409,11 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
         } finally {
             chatInput.disabled = false;
             sendBtn.disabled = false;
-            chatInput.focus();
+            // Removed chatInput.focus() because it steals focus from Excel and prevents Ctrl+Z undo 
+            chatInput.blur();
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
         }
     }
 
@@ -483,76 +487,18 @@ async function executeExcelActions(actions) {
         return;
     }
 
-    // ── PHASE 1: Pre-read all data for actions that need read-then-write ──────
-    // Done in a SEPARATE Excel.run so the main write run can use a single
-    // context.sync(), which is required for mergeUndoGroup to work correctly.
-    const preloadedData = {}; // key: action index → read values/sizes
-
-    await Excel.run(async (context) => {
-        const sheet = context.workbook.worksheets.getActiveWorksheet();
-        const readTasks = [];
-
-        actions.forEach((act, idx) => {
-            if (!act.action) return;
-
-            if (['merge_identical_cells', 'modify_cell_lines'].includes(act.action) && act.range) {
-                const r = sheet.getRange(act.range);
-                r.load("values, rowCount, columnCount");
-                readTasks.push({ idx, obj: r, type: 'range' });
-
-            } else if (act.action === 'set_number_format' && act.range) {
-                const r = sheet.getRange(act.range);
-                r.load("rowCount, columnCount");
-                readTasks.push({ idx, obj: r, type: 'size' });
-
-            } else if (act.action === 'remove_duplicates' && act.range) {
-                const needsRead = !act.columns || act.columns.length === 0 || act.keepFirst === false;
-                if (needsRead) {
-                    const r = sheet.getRange(act.range);
-                    r.load("values, rowCount, columnCount");
-                    readTasks.push({ idx, obj: r, type: 'range' });
-                }
-
-            } else if (act.action === 'modify_chart' && act.series_colors && act.chart_name) {
-                const series = sheet.charts.getItem(act.chart_name).series;
-                series.load("count");
-                readTasks.push({ idx, obj: series, type: 'chart' });
-            }
-        });
-
-        if (readTasks.length > 0) {
-            await context.sync();
-            readTasks.forEach(({ idx, obj, type }) => {
-                if (type === 'chart') {
-                    preloadedData[idx] = { seriesCount: obj.count };
-                } else if (type === 'size') {
-                    preloadedData[idx] = { rowCount: obj.rowCount, columnCount: obj.columnCount };
-                } else {
-                    preloadedData[idx] = {
-                        values: obj.values,
-                        rowCount: obj.rowCount,
-                        columnCount: obj.columnCount
-                    };
-                }
-            });
-        }
-    });
-
-    // ── PHASE 2: All writes in ONE Excel.run with a SINGLE context.sync() ─────
-    // mergeUndoGroup: true groups everything into one undo step.
-    // Having only ONE context.sync() at the very end is what makes it reliable.
     return Excel.run({ mergeUndoGroup: true }, async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
 
-        for (let idx = 0; idx < actions.length; idx++) {
-            const act = actions[idx];
+        for (const act of actions) {
             try {
                 if (act.action === 'clear_filter') {
                     sheet.autoFilter.clearCriteria();
                     continue;
                 }
 
-                const range = act.range ? sheet.getRange(act.range) : null;
+                if (!act.range) continue;
+                const range = sheet.getRange(act.range);
 
                 if (act.action === 'set_values' && act.values) {
                     range.values = act.values;
@@ -574,12 +520,13 @@ async function executeExcelActions(actions) {
                     const style = act.style || "Continuous";
                     const weight = act.weight || "Thin";
                     const borderTypes = act.border_types || ['EdgeTop', 'EdgeBottom', 'EdgeLeft', 'EdgeRight'];
+
                     borderTypes.forEach(b => {
                         try {
                             range.format.borders.getItem(b).style = style;
                             range.format.borders.getItem(b).weight = weight;
                         } catch (err) {
-                            console.warn("Unsupported border type:", b, err);
+                            console.warn("Unsupported border type or error applying type:", b, err);
                         }
                     });
                 }
@@ -602,53 +549,89 @@ async function executeExcelActions(actions) {
                     range.columnHidden = act.hidden;
                 }
                 else if (act.action === 'remove_duplicates') {
+                    // Office.js 'removeDuplicates' expects (columns: number[], includesHeader: boolean)
+                    // The 'columns' array should contain the 0-indexed column numbers to use for identifying duplicates.
+                    // By default, Excel's removeDuplicates keeps the *first* occurrence.
+                    // If the user wants to delete ALL occurrences (keepFirst: false), this requires custom logic.
+
                     let columns = act.columns;
                     const includesHeader = act.includesHeader === true;
-                    const keepFirst = act.keepFirst !== false;
-                    const cached = preloadedData[idx];
+                    const keepFirst = act.keepFirst !== false; // defaults to true
 
                     if (!columns || columns.length === 0) {
-                        columns = Array.from({ length: cached.columnCount }, (_, i) => i);
+                        range.load("columnCount");
+                        await context.sync();
+                        columns = Array.from({ length: range.columnCount }, (_, i) => i);
                     }
 
                     if (keepFirst) {
-                        range.removeDuplicates(columns, includesHeader);
+                        // Native Excel behavior
+                        const result = range.removeDuplicates(columns, includesHeader);
+                        result.load("removed");
                     } else {
-                        const values = cached.values;
+                        // Delete ALL duplicates (including the original)
+                        range.load("values, rowCount");
+                        await context.sync();
+
+                        const values = range.values;
                         const startIndex = includesHeader ? 1 : 0;
                         const rowKeys = values.map(row => columns.map(c => row[c]).join('|'));
+
+                        // Count frequencies
                         const freq = {};
                         for (let i = startIndex; i < rowKeys.length; i++) {
                             freq[rowKeys[i]] = (freq[rowKeys[i]] || 0) + 1;
                         }
+
+                        // Collect rows to clear
+                        // We iterate backwards to avoid shifting row indices when performing operations
+                        // (Though we are using clear() + filter, a more robust way is clearing duplicate rows)
+                        let clearedCount = 0;
                         for (let i = rowKeys.length - 1; i >= startIndex; i--) {
                             if (freq[rowKeys[i]] > 1) {
-                                range.getRow(i).clear();
+                                // Clear this row within the range
+                                const rowRange = range.getRow(i);
+                                rowRange.clear();
+                                clearedCount++;
                             }
                         }
+                        console.log(`Cleared ${clearedCount} rows of complete duplicates.`);
                     }
                 }
                 else if (act.action === 'add_chart') {
                     const chartType = act.type || "ColumnClustered";
                     const chart = sheet.charts.add(chartType, range, "Auto");
-                    if (act.title) chart.title.text = act.title;
+                    if (act.title) {
+                        chart.title.text = act.title;
+                    }
                 }
                 else if (act.action === 'modify_chart' && act.chart_name) {
                     const chart = sheet.charts.getItem(act.chart_name);
-                    if (act.title) chart.title.text = act.title;
+
+                    if (act.title) {
+                        chart.title.text = act.title;
+                    }
+
+                    // Handle Series Colors Update
                     if (act.series_colors && Array.isArray(act.series_colors)) {
-                        const cached = preloadedData[idx];
                         const seriesCollection = chart.series;
+                        seriesCollection.load("count");
+                        await context.sync(); // Sync to get the count
                         for (let i = 0; i < act.series_colors.length; i++) {
-                            if (!cached || i < cached.seriesCount) {
-                                seriesCollection.getItemAt(i).format.fill.setSolidColor(act.series_colors[i]);
+                            if (i < seriesCollection.count) {
+                                const seriesItem = seriesCollection.getItemAt(i);
+                                seriesItem.format.fill.setSolidColor(act.series_colors[i]);
                             }
                         }
                     }
                 }
                 else if (act.action === 'add_data_validation') {
+                    // source should be a comma separated string like "1,2,3"
                     range.dataValidation.rule = {
-                        list: { inCellDropDown: true, source: act.source }
+                        list: {
+                            inCellDropDown: true,
+                            source: act.source
+                        }
                     };
                 }
                 else if (act.action === 'set_print_area') {
@@ -661,15 +644,18 @@ async function executeExcelActions(actions) {
                             criterion1: act.criterion1
                         });
                     } else {
+                        // Just apply the filter dropdowns to the range without specific criteria
                         sheet.autoFilter.apply(range);
                     }
                 }
                 else if (act.action === 'merge_identical_cells') {
-                    const cached = preloadedData[idx];
                     const direction = act.direction || "vertical";
-                    const values = cached.values;
-                    const rows = cached.rowCount;
-                    const cols = cached.columnCount;
+                    range.load("values, rowCount, columnCount");
+                    await context.sync();
+
+                    const values = range.values;
+                    const rows = range.rowCount;
+                    const cols = range.columnCount;
 
                     if (direction === "vertical") {
                         for (let c = 0; c < cols; c++) {
@@ -680,12 +666,13 @@ async function executeExcelActions(actions) {
                                     endR++;
                                 }
                                 if (endR > startR) {
-                                    range.getCell(startR, c).getBoundingRect(range.getCell(endR, c)).merge(false);
+                                    const subRange = range.getCell(startR, c).getBoundingRect(range.getCell(endR, c));
+                                    subRange.merge(false);
                                 }
                                 startR = endR + 1;
                             }
                         }
-                    } else {
+                    } else { // horizontal
                         for (let r = 0; r < rows; r++) {
                             let startC = 0;
                             while (startC < cols) {
@@ -694,7 +681,8 @@ async function executeExcelActions(actions) {
                                     endC++;
                                 }
                                 if (endC > startC) {
-                                    range.getCell(r, startC).getBoundingRect(range.getCell(r, endC)).merge(false);
+                                    const subRange = range.getCell(r, startC).getBoundingRect(range.getCell(r, endC));
+                                    subRange.merge(false);
                                 }
                                 startC = endC + 1;
                             }
@@ -702,9 +690,13 @@ async function executeExcelActions(actions) {
                     }
                 }
                 else if (act.action === 'modify_cell_lines') {
-                    const cached = preloadedData[idx];
-                    const values = cached.values.map(row => [...row]); // deep copy
+                    // Workaround for partial formatting: modify specific lines within a cell
+                    range.load("values");
+                    await context.sync();
+
+                    const values = range.values;
                     let hasChanges = false;
+
                     for (let r = 0; r < values.length; r++) {
                         for (let c = 0; c < values[r].length; c++) {
                             const cellValue = values[r][c];
@@ -718,11 +710,14 @@ async function executeExcelActions(actions) {
                             }
                         }
                     }
-                    if (hasChanges) range.values = values;
+                    if (hasChanges) {
+                        range.values = values;
+                    }
                 }
                 else if (act.action === 'set_number_format' && act.format !== undefined) {
-                    const cached = preloadedData[idx];
-                    const formatArray = Array(cached.rowCount).fill(null).map(() => Array(cached.columnCount).fill(act.format));
+                    range.load("rowCount, columnCount");
+                    await context.sync();
+                    const formatArray = Array(range.rowCount).fill().map(() => Array(range.columnCount).fill(act.format));
                     range.numberFormat = formatArray;
                 }
             } catch (err) {
@@ -730,13 +725,18 @@ async function executeExcelActions(actions) {
             }
         }
 
-        // Select the first range to return focus to Excel so Ctrl+Z targets the workbook
-        const firstRangeAct = actions.find(a => a.range);
-        if (firstRangeAct) {
-            try { sheet.getRange(firstRangeAct.range).select(); } catch (e) {}
+        // Return focus to the spreadsheet so Ctrl+Z is caught by Excel
+        if (actions.length > 0) {
+            const rangeAct = actions.find(a => a.range);
+            if (rangeAct) {
+                try {
+                    sheet.getRange(rangeAct.range).select();
+                } catch (e) {
+                    console.warn("Could not select range:", rangeAct.range);
+                }
+            }
         }
 
-        // Single final sync — all writes are batched here for reliable undo grouping
         await context.sync();
     });
 }
