@@ -487,7 +487,7 @@ async function executeExcelActions(actions) {
         return;
     }
 
-    return Excel.run(async (context) => {
+    return Excel.run({ delayForCellEdit: true }, async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
 
         for (const act of actions) {
