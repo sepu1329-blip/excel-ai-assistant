@@ -409,11 +409,7 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
         } finally {
             chatInput.disabled = false;
             sendBtn.disabled = false;
-            // Removed chatInput.focus() because it steals focus from Excel and prevents Ctrl+Z undo 
-            chatInput.blur();
-            if (document.activeElement) {
-                document.activeElement.blur();
-            }
+            chatInput.focus();
         }
     }
 
@@ -464,18 +460,18 @@ async function getExcelContext(contextType) {
             range.load("values, address");
 
             // Load charts
-            const charts = sheet.charts;
-            charts.load("items/name, items/title/text, items/type");
+            // const charts = sheet.charts;
+            // charts.load("items/name, items/title/text, items/type");
 
             await context.sync();
 
-            let chartsInfo = charts.items.map(c => ({
-                name: c.name,
-                title: c.title ? c.title.text : "",
-                type: c.type
-            }));
+            // let chartsInfo = charts.items.map(c => ({
+            //     name: c.name,
+            //     title: c.title ? c.title.text : "",
+            //     type: c.type
+            // }));
 
-            let contextStr = `Range: ${range.address}\nValues: ${JSON.stringify(range.values)}\nCharts: ${JSON.stringify(chartsInfo)}`;
+            let contextStr = `Range: ${range.address}\nValues: ${JSON.stringify(range.values)}`;
             resolve(contextStr);
         }).catch(reject);
     });
@@ -722,18 +718,6 @@ async function executeExcelActions(actions) {
                 }
             } catch (err) {
                 console.error("Error executing action:", act, err);
-            }
-        }
-
-        // Return focus to the spreadsheet so Ctrl+Z is caught by Excel
-        if (actions.length > 0) {
-            const rangeAct = actions.find(a => a.range);
-            if (rangeAct) {
-                try {
-                    sheet.getRange(rangeAct.range).select();
-                } catch (e) {
-                    console.warn("Could not select range:", rangeAct.range);
-                }
             }
         }
 
