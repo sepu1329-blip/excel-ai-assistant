@@ -487,7 +487,7 @@ async function executeExcelActions(actions) {
         return;
     }
 
-    return Excel.run({ mergeUndoGroup: true }, async (context) => {
+    return Excel.run(async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
 
         for (const act of actions) {
