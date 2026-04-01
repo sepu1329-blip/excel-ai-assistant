@@ -1,10 +1,15 @@
-// Wait for Office.js to initialize
 Office.onReady((info) => {
-    if (info.host === Office.HostType.Workbook) {
-        console.log("Office.js is ready in Excel.");
-    }
+    console.log("Office.js is ready.");
     initApp();
 });
+
+// Fallback initialization if Office.onReady is slow (wait 2 seconds)
+setTimeout(() => {
+    if (typeof window.appInitialized === 'undefined') {
+        console.log("Fallback initialization acting...");
+        initApp();
+    }
+}, 2000);
 
 // App State
 const state = {
@@ -28,12 +33,19 @@ const defaultPrompts = [
 ];
 
 function initApp() {
+    if (window.appInitialized) return;
+    window.appInitialized = true;
+    console.log("initApp started");
     // DOM Elements
     const settingsView = document.getElementById('settings-view');
     const chatView = document.getElementById('chat-view');
     const apiKeyInput = document.getElementById('api-key');
     const modelSelect = document.getElementById('model-select');
     const saveSettingsBtn = document.getElementById('save-settings-btn');
+    if (!saveSettingsBtn) {
+        alert("CRITICAL ERROR: 'save-settings-btn' not found in DOM.");
+        return;
+    }
 
     const settingsBtn = document.getElementById('settings-btn');
     const clearChatBtn = document.getElementById('clear-chat-btn');
@@ -97,6 +109,7 @@ function initApp() {
 
     // Event Listeners
     saveSettingsBtn.addEventListener('click', () => {
+        console.log("Save button clicked");
         const key = apiKeyInput.value.trim();
         if (key) {
             state.apiKey = key;
