@@ -387,7 +387,7 @@ Supported actions:
 - {"action": "modify_cell_lines", "range": "A1:A2", "line_index": 1, "prefix": "[취소] ", "suffix": ""} // 0-based index of the line to modify in a multiline cell. A workaround for partial formatting constraints.
 - {"action": "set_number_format", "range": "A1:A10", "format": "0.00%"} // Applies a custom number format string (e.g., "#,##0", "yyyy-mm-dd", "0.00%", etc.)
 
-DO NOT wrap the JSON in markdown code blocks like ```json. Just output the raw JSON array (or object for questions) directly. If you cannot fulfill the request, output an empty array [].`;
+DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array (or object for questions) directly. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
             }
 
