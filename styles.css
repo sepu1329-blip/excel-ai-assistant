@@ -421,11 +421,23 @@ body {
 .loading-indicator {
   align-self: flex-start;
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
   padding: 12px 16px;
   background-color: var(--ai-msg-bg);
   border-radius: var(--radius-lg);
   border-bottom-left-radius: 4px;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.status-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .dot {
@@ -502,6 +514,14 @@ code {
   cursor: pointer;
   transition: all 0.2s;
   flex-shrink: 0;
+}
+
+.send-btn.loading {
+  background-color: #f97316; /* Orange for stop */
+}
+
+.send-btn.loading:hover {
+  background-color: #ea580c;
 }
 
 .send-btn:hover {

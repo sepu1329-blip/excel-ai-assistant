@@ -9,12 +9,14 @@ Office.onReady((info) => {
 // App State
 const state = {
     apiKey: '',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.1-flash',
     mode: 'ask', // 'ask' or 'agent'
     context: 'cell', // 'cell' or 'sheet'
     chatHistory: [], // store messages
     savedPrompts: [] // array of { id, name, text }
 };
+
+let currentAbortController = null; // To cancel AI requests
 
 const defaultPrompts = [
     { id: 'p1', name: '표 형태로 정리하기', text: '바깥쪽과 안쪽 세로 실선 / 안쪽 가로선 점선 테두리 적용.' },
@@ -299,6 +301,13 @@ function initApp() {
     }
 
     async function handleSend() {
+        // If already loading, this acts as a STOP button
+        if (currentAbortController) {
+            currentAbortController.abort();
+            currentAbortController = null;
+            return;
+        }
+
         const text = chatInput.value.trim();
         if (!text) return;
         if (!state.apiKey) {
@@ -310,16 +319,28 @@ function initApp() {
         appendMessage('user', text);
         chatInput.value = '';
 
-        // Disable input while loading
+        // Disable input
         chatInput.disabled = true;
-        sendBtn.disabled = true;
+        
+        // Change button to STOP mode
+        sendBtn.classList.add('loading');
+        sendBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="6" y="6" width="12" height="12"></rect>
+            </svg>
+        `;
+
+        // Create new AbortController
+        currentAbortController = new AbortController();
 
         // Show loading
-        const loadingId = appendLoading();
+        const loadingId = appendLoading("엑셀 데이터를 읽고 있습니다...");
 
         try {
             // 1. Gather context from Excel
             const excelContextData = await getExcelContext(state.context);
+            
+            updateLoadingStatus(loadingId, "Gemini AI가 생각 중입니다...");
 
             // 2. Call Gemini
             let systemInstruction = "";
@@ -366,18 +387,19 @@ Supported actions:
 - {"action": "modify_cell_lines", "range": "A1:A2", "line_index": 1, "prefix": "[취소] ", "suffix": ""} // 0-based index of the line to modify in a multiline cell. A workaround for partial formatting constraints.
 - {"action": "set_number_format", "range": "A1:A10", "format": "0.00%"} // Applies a custom number format string (e.g., "#,##0", "yyyy-mm-dd", "0.00%", etc.)
 
-DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the raw JSON array (or object for questions) directly. If you cannot fulfill the request, output an empty array [].`;
+DO NOT wrap the JSON in markdown code blocks like ```json. Just output the raw JSON array (or object for questions) directly. If you cannot fulfill the request, output an empty array [].`;
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
             }
 
-            const responseText = await callGeminiAPI(systemInstruction, promptText);
+            const responseText = await callGeminiAPI(systemInstruction, promptText, currentAbortController.signal);
 
             // Remove loading
-            document.getElementById(loadingId).remove();
+            document.getElementById(loadingId)?.remove();
 
             if (state.mode === 'ask') {
                 appendMessage('ai', marked.parse(responseText));
             } else {
+                updateLoadingStatus(loadingId, "AI 응답을 분석하고 엑셀 작업을 준비 중입니다...");
                 // Agent mode: Attempt to parse JSON and execute
                 try {
                     // Try to clean markdown block if the AI ignored instructions
@@ -393,25 +415,44 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
                         // AI is asking for clarification
                         appendMessage('ai', `<p>🙋 <b>질문:</b> ${questionAction.message}</p>`);
                     } else if (actionsArray.some(a => a.action)) {
+                        updateLoadingStatus(loadingId, "엑셀 작업을 실행하고 있습니다...");
                         await executeExcelActions(actionsArray);
+                        document.getElementById(loadingId)?.remove();
                         appendMessage('ai', `<p>✅ Executed ${actionsArray.length} action(s) successfully.</p>`);
                     } else {
+                        document.getElementById(loadingId)?.remove();
                         // Let the user know the AI couldn't generate valid actions, print raw output for debug
                         appendMessage('ai', `<p>No valid actions found to apply.</p><div style="font-size: 0.85em; color: gray; margin-top: 5px; padding: 5px; background: #f9f9f9; border-radius: 4px; overflow-x: auto;"><b>Raw AI Output:</b><br/>${responseText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`);
                     }
                 } catch (err) {
                     console.error("Agent JSON parsing error:", err, responseText);
+                    document.getElementById(loadingId)?.remove();
                     appendMessage('error', `<p>Failed to parse AI response as valid format.<br/><br/><div style="font-size: 0.85em; color: gray;"><b>Raw AI Output:</b><br/>${responseText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div></p>`);
                 }
             }
 
         } catch (error) {
-            console.error(error);
-            document.getElementById(loadingId)?.remove();
-            appendMessage('error', `<p>Error: ${error.message}</p>`);
+            if (error.name === 'AbortError') {
+                console.log("AI request aborted by user.");
+                document.getElementById(loadingId)?.remove();
+                appendMessage('system', "작업이 사용자에 의해 중단되었습니다.");
+            } else {
+                console.error(error);
+                document.getElementById(loadingId)?.remove();
+                appendMessage('error', `<p>Error: ${error.message}</p>`);
+            }
         } finally {
+            currentAbortController = null;
             chatInput.disabled = false;
-            sendBtn.disabled = false;
+            
+            // Restore button to SEND mode
+            sendBtn.classList.remove('loading');
+            sendBtn.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            `;
             chatInput.focus();
         }
     }
@@ -430,15 +471,32 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
     }
 
-    function appendLoading() {
+    function appendLoading(initialMessage = "AI가 생각 중입니다...") {
         const id = 'loading-' + Date.now();
         const div = document.createElement('div');
         div.id = id;
         div.className = 'loading-indicator';
-        div.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
+        div.innerHTML = `
+            <div class="loading-dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+            <div class="status-text">${initialMessage}</div>
+        `;
         chatHistoryEl.appendChild(div);
         chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
         return id;
+    }
+
+    function updateLoadingStatus(id, message) {
+        const el = document.getElementById(id);
+        if (el) {
+            const statusEl = el.querySelector('.status-text');
+            if (statusEl) {
+                statusEl.textContent = message;
+            }
+        }
     }
 }
 
@@ -744,7 +802,7 @@ async function executeExcelActions(actions) {
 
 // ============== GEMINI API LOGIC ==============
 
-async function callGeminiAPI(systemInstruction, userPrompt) {
+async function callGeminiAPI(systemInstruction, userPrompt, signal) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${state.model}:generateContent?key=${state.apiKey}`;
 
     const body = {
@@ -765,7 +823,8 @@ async function callGeminiAPI(systemInstruction, userPrompt) {
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: signal
     });
 
     if (!response.ok) {
