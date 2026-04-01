@@ -9,7 +9,7 @@ Office.onReady((info) => {
 // App State
 const state = {
     apiKey: '',
-    model: 'gemini-3.1-flash',
+    model: 'gemini-1.5-flash',
     mode: 'ask', // 'ask' or 'agent'
     context: 'cell', // 'cell' or 'sheet'
     chatHistory: [], // store messages
@@ -59,10 +59,18 @@ function initApp() {
     const modeBtns = document.querySelectorAll('.mode-toggle .toggle-btn');
     const contextBtns = document.querySelectorAll('.context-toggle .toggle-btn');
 
-    // Load saved settings
-    const savedKey = localStorage.getItem('gemini_api_key');
-    const savedModel = localStorage.getItem('gemini_model');
-    const savedPromptsLocal = localStorage.getItem('gemini_prompts');
+    // Load saved settings (Wrapped in try-catch for restricted environments)
+    let savedKey = null;
+    let savedModel = null;
+    let savedPromptsLocal = null;
+    
+    try {
+        savedKey = localStorage.getItem('gemini_api_key');
+        savedModel = localStorage.getItem('gemini_model');
+        savedPromptsLocal = localStorage.getItem('gemini_prompts');
+    } catch (e) {
+        console.warn("Storage access denied:", e);
+    }
 
     // Initialize Prompts
     if (savedPromptsLocal) {
@@ -93,8 +101,12 @@ function initApp() {
         if (key) {
             state.apiKey = key;
             state.model = modelSelect.value;
-            localStorage.setItem('gemini_api_key', key);
-            localStorage.setItem('gemini_model', state.model);
+            try {
+                localStorage.setItem('gemini_api_key', key);
+                localStorage.setItem('gemini_model', state.model);
+            } catch (e) {
+                console.warn("Could not save to localStorage:", e);
+            }
             showView('chat');
         } else {
             alert('Please enter a valid API key.');
@@ -235,7 +247,11 @@ function initApp() {
     });
 
     function savePromptsToStorage() {
-        localStorage.setItem('gemini_prompts', JSON.stringify(state.savedPrompts));
+        try {
+            localStorage.setItem('gemini_prompts', JSON.stringify(state.savedPrompts));
+        } catch (e) {
+            console.warn("Could not save prompts:", e);
+        }
     }
 
     function renderPrompts() {
@@ -293,10 +309,14 @@ function initApp() {
     function showView(viewName) {
         if (viewName === 'settings') {
             settingsView.classList.remove('hidden');
+            settingsView.classList.add('visible');
             chatView.classList.add('hidden');
+            chatView.classList.remove('visible');
         } else {
             settingsView.classList.add('hidden');
+            settingsView.classList.remove('visible');
             chatView.classList.remove('hidden');
+            chatView.classList.add('visible');
         }
     }
 
