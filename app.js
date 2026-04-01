@@ -9,7 +9,7 @@ Office.onReady((info) => {
 // App State
 const state = {
     apiKey: '',
-    model: 'gemini-1.5-flash',
+    model: 'gemini-3.1-flash',
     mode: 'ask', // 'ask' or 'agent'
     context: 'cell', // 'cell' or 'sheet'
     chatHistory: [], // store messages
