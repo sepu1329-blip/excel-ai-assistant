@@ -14,7 +14,7 @@ setTimeout(() => {
 // App State
 const state = {
     apiKey: '',
-    model: 'gemini-3.1-flash',
+    model: 'gemini-3.1-pro-preview',
     mode: 'ask', // 'ask' or 'agent'
     context: 'cell', // 'cell' or 'sheet'
     chatHistory: [], // store messages
