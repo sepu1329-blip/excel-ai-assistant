@@ -136,20 +136,32 @@
       </div>
 
       <!-- Chat Input -->
-      <div class="chat-input-area">
-        <textarea id="chat-input" placeholder="여기에 요청사항을 입력하세요..." rows="2"></textarea>
-        <button id="send-btn" class="send-btn">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-        </button>
+      <div class="chat-input-wrapper">
+        <!-- Image preview area (shown when image is pasted) -->
+        <div id="image-preview-area" class="image-preview-area hidden">
+          <div id="image-preview-container" class="image-preview-container"></div>
+        </div>
+        <div class="chat-input-area">
+          <textarea id="chat-input" placeholder="여기에 요청사항을 입력하세요... (이미지 붙여넣기 가능)" rows="2"></textarea>
+          <button id="send-btn" class="send-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+        <div class="chat-input-footer">
+          <select id="chat-model-select" class="chat-model-select">
+            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+            <option value="gemini-3-flash-preview" selected>Gemini 3 Flash</option>
+          </select>
+        </div>
       </div>
     </div>
 
   </div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 
 </html>

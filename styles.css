@@ -472,11 +472,63 @@ code {
   font-size: 12px;
 }
 
-/* Chat Input */
-.chat-input-area {
-  padding: 16px;
+/* Chat Input Wrapper */
+.chat-input-wrapper {
   background-color: var(--surface-color);
   border-top: 1px solid var(--border-color);
+}
+
+/* Image Preview */
+.image-preview-area {
+  padding: 8px 16px 0;
+}
+
+.image-preview-container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.image-preview-item {
+  position: relative;
+  display: inline-block;
+}
+
+.image-preview-item img {
+  max-height: 64px;
+  max-width: 100px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  object-fit: cover;
+}
+
+.image-preview-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: white;
+  border: 2px solid var(--surface-color);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: transform 0.15s;
+}
+
+.image-preview-remove:hover {
+  transform: scale(1.15);
+}
+
+/* Chat Input Area */
+.chat-input-area {
+  padding: 12px 16px 4px;
   display: flex;
   gap: 12px;
   align-items: flex-end;
@@ -501,6 +553,49 @@ code {
   background-color: var(--surface-color);
 }
 
+/* Chat Input Footer (Model Selector) */
+.chat-input-footer {
+  padding: 4px 16px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-model-select {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: inherit;
+  background-color: var(--bg-color);
+  color: var(--text-secondary);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chat-model-select:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.chat-model-select:focus {
+  border-color: var(--primary-color);
+}
+
+/* Chat message image */
+.message-image {
+  max-width: 120px;
+  max-height: 80px;
+  border-radius: var(--radius-sm);
+  margin-top: 6px;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.message.ai .message-image {
+  border-color: var(--border-color);
+}
+
 .send-btn {
   background-color: var(--primary-color);
   color: white;
@@ -517,7 +612,7 @@ code {
 }
 
 .send-btn.loading {
-  background-color: #f97316; /* Orange for stop */
+  background-color: #f97316;
 }
 
 .send-btn.loading:hover {

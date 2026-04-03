@@ -18,7 +18,8 @@ const state = {
     mode: 'ask', // 'ask' or 'agent'
     context: 'cell', // 'cell' or 'sheet'
     chatHistory: [], // store messages
-    savedPrompts: [] // array of { id, name, text }
+    savedPrompts: [], // array of { id, name, text }
+    pendingImages: [] // array of { base64, mimeType } for pasted images
 };
 
 let currentAbortController = null; // To cancel AI requests
@@ -53,6 +54,12 @@ function initApp() {
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
     const savedPromptsSelect = document.getElementById('saved-prompts-select');
+
+    // Chat Model Selector
+    const chatModelSelect = document.getElementById('chat-model-select');
+    // Image Preview
+    const imagePreviewArea = document.getElementById('image-preview-area');
+    const imagePreviewContainer = document.getElementById('image-preview-container');
 
     // Prompt Management Elements
     const addPromptBtn = document.getElementById('add-prompt-btn');
@@ -103,6 +110,7 @@ function initApp() {
         if (savedModel) {
             state.model = savedModel;
             modelSelect.value = savedModel;
+            chatModelSelect.value = savedModel;
         }
         showView('chat');
     }
@@ -114,6 +122,7 @@ function initApp() {
         if (key) {
             state.apiKey = key;
             state.model = modelSelect.value;
+            chatModelSelect.value = state.model; // sync chat model selector
             try {
                 localStorage.setItem('gemini_api_key', key);
                 localStorage.setItem('gemini_model', state.model);
@@ -123,6 +132,17 @@ function initApp() {
             showView('chat');
         } else {
             alert('Please enter a valid API key.');
+        }
+    });
+
+    // Chat Model Selector - sync with state and settings
+    chatModelSelect.addEventListener('change', () => {
+        state.model = chatModelSelect.value;
+        modelSelect.value = state.model; // sync settings dropdown
+        try {
+            localStorage.setItem('gemini_model', state.model);
+        } catch (e) {
+            console.warn("Could not save model:", e);
         }
     });
 
@@ -319,6 +339,63 @@ function initApp() {
 
     sendBtn.addEventListener('click', handleSend);
 
+    // Image paste handling
+    chatInput.addEventListener('paste', (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (!file) continue;
+
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const dataUrl = ev.target.result;
+                    // Extract base64 and mimeType
+                    const mimeType = file.type;
+                    const base64 = dataUrl.split(',')[1];
+
+                    state.pendingImages.push({ base64, mimeType });
+                    renderImagePreviews();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+    });
+
+    function renderImagePreviews() {
+        imagePreviewContainer.innerHTML = '';
+        if (state.pendingImages.length === 0) {
+            imagePreviewArea.classList.add('hidden');
+            return;
+        }
+        imagePreviewArea.classList.remove('hidden');
+
+        state.pendingImages.forEach((img, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'image-preview-item';
+
+            const imgEl = document.createElement('img');
+            imgEl.src = `data:${img.mimeType};base64,${img.base64}`;
+            imgEl.alt = 'Pasted image';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'image-preview-remove';
+            removeBtn.innerHTML = '✕';
+            removeBtn.title = '이미지 제거';
+            removeBtn.addEventListener('click', () => {
+                state.pendingImages.splice(index, 1);
+                renderImagePreviews();
+            });
+
+            wrapper.appendChild(imgEl);
+            wrapper.appendChild(removeBtn);
+            imagePreviewContainer.appendChild(wrapper);
+        });
+    }
+
     function showView(viewName) {
         if (viewName === 'settings') {
             settingsView.classList.remove('hidden');
@@ -342,14 +419,19 @@ function initApp() {
         }
 
         const text = chatInput.value.trim();
-        if (!text) return;
+        if (!text && state.pendingImages.length === 0) return;
         if (!state.apiKey) {
             showView('settings');
             return;
         }
 
-        // Add user message to UI
-        appendMessage('user', text);
+        // Capture pasted images before clearing
+        const images = [...state.pendingImages];
+        state.pendingImages = [];
+        renderImagePreviews();
+
+        // Add user message to UI (with image thumbnails)
+        appendMessage('user', text, images);
         chatInput.value = '';
 
         // Disable input
@@ -424,7 +506,7 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
             }
 
-            const responseText = await callGeminiAPI(systemInstruction, promptText, currentAbortController.signal);
+            const responseText = await callGeminiAPI(systemInstruction, promptText, currentAbortController.signal, images);
 
             // Remove loading
             document.getElementById(loadingId)?.remove();
@@ -490,12 +572,27 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
         }
     }
 
-    function appendMessage(role, contentMarkup) {
+    function appendMessage(role, contentMarkup, images) {
         const div = document.createElement('div');
         div.className = `message ${role}`;
 
         if (role === 'user') {
-            div.textContent = contentMarkup; // User input is raw text
+            // Text content
+            if (contentMarkup) {
+                const textSpan = document.createElement('span');
+                textSpan.textContent = contentMarkup;
+                div.appendChild(textSpan);
+            }
+            // Image thumbnails
+            if (images && images.length > 0) {
+                images.forEach(img => {
+                    const imgEl = document.createElement('img');
+                    imgEl.src = `data:${img.mimeType};base64,${img.base64}`;
+                    imgEl.className = 'message-image';
+                    imgEl.alt = '첨부 이미지';
+                    div.appendChild(imgEl);
+                });
+            }
         } else {
             div.innerHTML = contentMarkup; // AI is parsed markdown / HTML
         }
@@ -826,13 +923,29 @@ async function executeSingleAction(act) {
 
 // ============== GEMINI API LOGIC ==============
 
-async function callGeminiAPI(systemInstruction, userPrompt, signal) {
+async function callGeminiAPI(systemInstruction, userPrompt, signal, images) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${state.model}:generateContent?key=${state.apiKey}`;
+
+    // Build parts array: text first, then images
+    const parts = [];
+    if (userPrompt) {
+        parts.push({ text: userPrompt });
+    }
+    if (images && images.length > 0) {
+        images.forEach(img => {
+            parts.push({
+                inline_data: {
+                    mime_type: img.mimeType,
+                    data: img.base64
+                }
+            });
+        });
+    }
 
     const body = {
         contents: [{
             role: "user",
-            parts: [{ text: userPrompt }]
+            parts: parts
         }],
         systemInstruction: {
             parts: [{ text: systemInstruction }]
