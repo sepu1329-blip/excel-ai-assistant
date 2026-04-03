@@ -486,7 +486,13 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
             `;
-            chatInput.focus();
+            // In agent mode after Excel operations, don't steal focus from Excel
+            // so that Ctrl+Z / Cmd+Z targets the Excel undo stack.
+            // Only focus chat input in ask mode or when no Excel actions ran.
+            if (state.mode === 'ask') {
+                chatInput.focus();
+            }
+            // For agent mode, returnFocusToExcel() is already called in executeExcelActions
         }
     }
 
@@ -577,256 +583,275 @@ async function executeExcelActions(actions) {
         return;
     }
 
+    // Execute each action in its own Excel.run to ensure each is registered
+    // as a separate undo entry in the desktop Excel undo stack.
+    for (const act of actions) {
+        await executeSingleAction(act);
+    }
+
+    // After all actions complete, return focus to Excel document
+    // so Ctrl+Z / Cmd+Z targets Excel's undo stack, not the add-in pane.
+    returnFocusToExcel();
+}
+
+// Returns focus from the add-in taskpane back to the Excel document
+// so that keyboard shortcuts (Ctrl+Z) target Excel's undo stack.
+function returnFocusToExcel() {
+    try {
+        // Blur the active element in the taskpane
+        if (document.activeElement && document.activeElement !== document.body) {
+            document.activeElement.blur();
+        }
+        // Attempt to programmatically activate the Excel document
+        if (window.Excel && Excel.run) {
+            Excel.run(async (context) => {
+                // Selecting a range forces Excel to take focus
+                const selected = context.workbook.getSelectedRange();
+                selected.select();
+                await context.sync();
+            }).catch(() => {
+                // Silently ignore - this is a best-effort focus return
+            });
+        }
+    } catch (e) {
+        console.warn("returnFocusToExcel:", e);
+    }
+}
+
+async function executeSingleAction(act) {
     return Excel.run({ delayForCellEdit: true }, async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
 
-        for (const act of actions) {
-            try {
-                if (act.action === 'clear_filter') {
-                    sheet.autoFilter.clearCriteria();
-                    continue;
-                }
-
-                if (!act.range) continue;
-                const range = sheet.getRange(act.range);
-
-                if (act.action === 'set_values' && act.values) {
-                    range.values = act.values;
-                }
-                else if (act.action === 'format_color' && act.color) {
-                    range.format.fill.color = act.color;
-                }
-                else if (act.action === 'format_font') {
-                    if (act.strikethrough !== undefined) range.format.font.strikethrough = act.strikethrough;
-                    if (act.size !== undefined) range.format.font.size = act.size;
-                    if (act.bold !== undefined) range.format.font.bold = act.bold;
-                    if (act.italic !== undefined) range.format.font.italic = act.italic;
-                }
-                else if (act.action === 'format_alignment') {
-                    if (act.horizontal) range.format.horizontalAlignment = act.horizontal;
-                    if (act.vertical) range.format.verticalAlignment = act.vertical;
-                }
-                else if (act.action === 'format_borders') {
-                    const style = act.style || "Continuous";
-                    const weight = act.weight || "Thin";
-                    const borderTypes = act.border_types || ['EdgeTop', 'EdgeBottom', 'EdgeLeft', 'EdgeRight'];
-
-                    borderTypes.forEach(b => {
-                        try {
-                            range.format.borders.getItem(b).style = style;
-                            range.format.borders.getItem(b).weight = weight;
-                        } catch (err) {
-                            console.warn("Unsupported border type or error applying type:", b, err);
-                        }
-                    });
-                }
-                else if (act.action === 'clear_range') {
-                    range.clear();
-                }
-                else if (act.action === 'set_formula' && act.formula) {
-                    range.formulas = [[act.formula]];
-                }
-                else if (act.action === 'set_row_height' && act.height !== undefined) {
-                    range.format.rowHeight = act.height;
-                }
-                else if (act.action === 'set_column_width' && act.width !== undefined) {
-                    range.format.columnWidth = act.width;
-                }
-                else if (act.action === 'hide_rows' && act.hidden !== undefined) {
-                    range.rowHidden = act.hidden;
-                }
-                else if (act.action === 'hide_columns' && act.hidden !== undefined) {
-                    range.columnHidden = act.hidden;
-                }
-                else if (act.action === 'remove_duplicates') {
-                    // Office.js 'removeDuplicates' expects (columns: number[], includesHeader: boolean)
-                    // The 'columns' array should contain the 0-indexed column numbers to use for identifying duplicates.
-                    // By default, Excel's removeDuplicates keeps the *first* occurrence.
-                    // If the user wants to delete ALL occurrences (keepFirst: false), this requires custom logic.
-
-                    let columns = act.columns;
-                    const includesHeader = act.includesHeader === true;
-                    const keepFirst = act.keepFirst !== false; // defaults to true
-
-                    if (!columns || columns.length === 0) {
-                        range.load("columnCount");
-                        await context.sync();
-                        columns = Array.from({ length: range.columnCount }, (_, i) => i);
-                    }
-
-                    if (keepFirst) {
-                        // Native Excel behavior
-                        const result = range.removeDuplicates(columns, includesHeader);
-                        result.load("removed");
-                    } else {
-                        // Delete ALL duplicates (including the original)
-                        range.load("values, rowCount");
-                        await context.sync();
-
-                        const values = range.values;
-                        const startIndex = includesHeader ? 1 : 0;
-                        const rowKeys = values.map(row => columns.map(c => row[c]).join('|'));
-
-                        // Count frequencies
-                        const freq = {};
-                        for (let i = startIndex; i < rowKeys.length; i++) {
-                            freq[rowKeys[i]] = (freq[rowKeys[i]] || 0) + 1;
-                        }
-
-                        // Collect rows to clear
-                        // We iterate backwards to avoid shifting row indices when performing operations
-                        // (Though we are using clear() + filter, a more robust way is clearing duplicate rows)
-                        let clearedCount = 0;
-                        for (let i = rowKeys.length - 1; i >= startIndex; i--) {
-                            if (freq[rowKeys[i]] > 1) {
-                                // Clear this row within the range
-                                const rowRange = range.getRow(i);
-                                rowRange.clear();
-                                clearedCount++;
-                            }
-                        }
-                        console.log(`Cleared ${clearedCount} rows of complete duplicates.`);
-                    }
-                }
-                else if (act.action === 'add_chart') {
-                    const chartType = act.type || "ColumnClustered";
-                    const chart = sheet.charts.add(chartType, range, "Auto");
-                    if (act.title) {
-                        chart.title.text = act.title;
-                        chart.title.visible = true;
-                    }
-                }
-                else if (act.action === 'add_table') {
-                    const hasHeader = act.has_header !== false;
-                    const newTable = sheet.tables.add(range, hasHeader);
-                    if (act.table_name) {
-                        newTable.name = act.table_name;
-                    }
-                }
-                else if (act.action === 'insert_cells') {
-                    range.insert(act.shift === "Right" ? "Right" : "Down");
-                }
-                else if (act.action === 'delete_cells') {
-                    range.delete(act.shift === "Left" ? "Left" : "Up");
-                }
-                else if (act.action === 'modify_chart' && act.chart_name) {
-                    const chart = sheet.charts.getItem(act.chart_name);
-
-                    if (act.title) {
-                        chart.title.text = act.title;
-                    }
-
-                    // Handle Series Colors Update
-                    if (act.series_colors && Array.isArray(act.series_colors)) {
-                        const seriesCollection = chart.series;
-                        seriesCollection.load("count");
-                        await context.sync(); // Sync to get the count
-                        for (let i = 0; i < act.series_colors.length; i++) {
-                            if (i < seriesCollection.count) {
-                                const seriesItem = seriesCollection.getItemAt(i);
-                                seriesItem.format.fill.setSolidColor(act.series_colors[i]);
-                            }
-                        }
-                    }
-                }
-                else if (act.action === 'add_data_validation') {
-                    // source should be a comma separated string like "1,2,3"
-                    range.dataValidation.rule = {
-                        list: {
-                            inCellDropDown: true,
-                            source: act.source
-                        }
-                    };
-                }
-                else if (act.action === 'set_print_area') {
-                    sheet.pageLayout.setPrintArea(range);
-                }
-                else if (act.action === 'apply_filter') {
-                    if (act.criterion1 !== undefined && act.column !== undefined) {
-                        sheet.autoFilter.apply(range, act.column, {
-                            filterOn: Excel.FilterOn.custom,
-                            criterion1: act.criterion1
-                        });
-                    } else {
-                        // Just apply the filter dropdowns to the range without specific criteria
-                        sheet.autoFilter.apply(range);
-                    }
-                }
-                else if (act.action === 'merge_identical_cells') {
-                    const direction = act.direction || "vertical";
-                    range.load("values, rowCount, columnCount");
-                    await context.sync();
-
-                    const values = range.values;
-                    const rows = range.rowCount;
-                    const cols = range.columnCount;
-
-                    if (direction === "vertical") {
-                        for (let c = 0; c < cols; c++) {
-                            let startR = 0;
-                            while (startR < rows) {
-                                let endR = startR;
-                                while (endR + 1 < rows && values[endR][c] === values[endR + 1][c] && values[endR][c] !== "" && values[endR][c] != null) {
-                                    endR++;
-                                }
-                                if (endR > startR) {
-                                    const subRange = range.getCell(startR, c).getBoundingRect(range.getCell(endR, c));
-                                    subRange.merge(false);
-                                }
-                                startR = endR + 1;
-                            }
-                        }
-                    } else { // horizontal
-                        for (let r = 0; r < rows; r++) {
-                            let startC = 0;
-                            while (startC < cols) {
-                                let endC = startC;
-                                while (endC + 1 < cols && values[r][endC] === values[r][endC + 1] && values[r][endC] !== "" && values[r][endC] != null) {
-                                    endC++;
-                                }
-                                if (endC > startC) {
-                                    const subRange = range.getCell(r, startC).getBoundingRect(range.getCell(r, endC));
-                                    subRange.merge(false);
-                                }
-                                startC = endC + 1;
-                            }
-                        }
-                    }
-                }
-                else if (act.action === 'modify_cell_lines') {
-                    // Workaround for partial formatting: modify specific lines within a cell
-                    range.load("values");
-                    await context.sync();
-
-                    const values = range.values;
-                    let hasChanges = false;
-
-                    for (let r = 0; r < values.length; r++) {
-                        for (let c = 0; c < values[r].length; c++) {
-                            const cellValue = values[r][c];
-                            if (typeof cellValue === 'string' && cellValue.includes('\n')) {
-                                let lines = cellValue.split('\n');
-                                if (act.line_index !== undefined && act.line_index >= 0 && act.line_index < lines.length) {
-                                    lines[act.line_index] = (act.prefix || "") + lines[act.line_index] + (act.suffix || "");
-                                    values[r][c] = lines.join('\n');
-                                    hasChanges = true;
-                                }
-                            }
-                        }
-                    }
-                    if (hasChanges) {
-                        range.values = values;
-                    }
-                }
-                else if (act.action === 'set_number_format' && act.format !== undefined) {
-                    range.load("rowCount, columnCount");
-                    await context.sync();
-                    const formatArray = Array(range.rowCount).fill().map(() => Array(range.columnCount).fill(act.format));
-                    range.numberFormat = formatArray;
-                }
-            } catch (err) {
-                console.error("Error executing action:", act, err);
+        try {
+            if (act.action === 'clear_filter') {
+                sheet.autoFilter.clearCriteria();
+                await context.sync();
+                return;
             }
+
+            if (!act.range) return;
+            const range = sheet.getRange(act.range);
+
+            if (act.action === 'set_values' && act.values) {
+                range.values = act.values;
+            }
+            else if (act.action === 'format_color' && act.color) {
+                range.format.fill.color = act.color;
+            }
+            else if (act.action === 'format_font') {
+                if (act.strikethrough !== undefined) range.format.font.strikethrough = act.strikethrough;
+                if (act.size !== undefined) range.format.font.size = act.size;
+                if (act.bold !== undefined) range.format.font.bold = act.bold;
+                if (act.italic !== undefined) range.format.font.italic = act.italic;
+            }
+            else if (act.action === 'format_alignment') {
+                if (act.horizontal) range.format.horizontalAlignment = act.horizontal;
+                if (act.vertical) range.format.verticalAlignment = act.vertical;
+            }
+            else if (act.action === 'format_borders') {
+                const style = act.style || "Continuous";
+                const weight = act.weight || "Thin";
+                const borderTypes = act.border_types || ['EdgeTop', 'EdgeBottom', 'EdgeLeft', 'EdgeRight'];
+
+                borderTypes.forEach(b => {
+                    try {
+                        range.format.borders.getItem(b).style = style;
+                        range.format.borders.getItem(b).weight = weight;
+                    } catch (err) {
+                        console.warn("Unsupported border type or error applying type:", b, err);
+                    }
+                });
+            }
+            else if (act.action === 'clear_range') {
+                range.clear();
+            }
+            else if (act.action === 'set_formula' && act.formula) {
+                range.formulas = [[act.formula]];
+            }
+            else if (act.action === 'set_row_height' && act.height !== undefined) {
+                range.format.rowHeight = act.height;
+            }
+            else if (act.action === 'set_column_width' && act.width !== undefined) {
+                range.format.columnWidth = act.width;
+            }
+            else if (act.action === 'hide_rows' && act.hidden !== undefined) {
+                range.rowHidden = act.hidden;
+            }
+            else if (act.action === 'hide_columns' && act.hidden !== undefined) {
+                range.columnHidden = act.hidden;
+            }
+            else if (act.action === 'remove_duplicates') {
+                let columns = act.columns;
+                const includesHeader = act.includesHeader === true;
+                const keepFirst = act.keepFirst !== false;
+
+                if (!columns || columns.length === 0) {
+                    range.load("columnCount");
+                    await context.sync();
+                    columns = Array.from({ length: range.columnCount }, (_, i) => i);
+                }
+
+                if (keepFirst) {
+                    const result = range.removeDuplicates(columns, includesHeader);
+                    result.load("removed");
+                } else {
+                    range.load("values, rowCount");
+                    await context.sync();
+
+                    const values = range.values;
+                    const startIndex = includesHeader ? 1 : 0;
+                    const rowKeys = values.map(row => columns.map(c => row[c]).join('|'));
+
+                    const freq = {};
+                    for (let i = startIndex; i < rowKeys.length; i++) {
+                        freq[rowKeys[i]] = (freq[rowKeys[i]] || 0) + 1;
+                    }
+
+                    let clearedCount = 0;
+                    for (let i = rowKeys.length - 1; i >= startIndex; i--) {
+                        if (freq[rowKeys[i]] > 1) {
+                            const rowRange = range.getRow(i);
+                            rowRange.clear();
+                            clearedCount++;
+                        }
+                    }
+                    console.log(`Cleared ${clearedCount} rows of complete duplicates.`);
+                }
+            }
+            else if (act.action === 'add_chart') {
+                const chartType = act.type || "ColumnClustered";
+                const chart = sheet.charts.add(chartType, range, "Auto");
+                if (act.title) {
+                    chart.title.text = act.title;
+                    chart.title.visible = true;
+                }
+            }
+            else if (act.action === 'add_table') {
+                const hasHeader = act.has_header !== false;
+                const newTable = sheet.tables.add(range, hasHeader);
+                if (act.table_name) {
+                    newTable.name = act.table_name;
+                }
+            }
+            else if (act.action === 'insert_cells') {
+                range.insert(act.shift === "Right" ? "Right" : "Down");
+            }
+            else if (act.action === 'delete_cells') {
+                range.delete(act.shift === "Left" ? "Left" : "Up");
+            }
+            else if (act.action === 'modify_chart' && act.chart_name) {
+                const chart = sheet.charts.getItem(act.chart_name);
+
+                if (act.title) {
+                    chart.title.text = act.title;
+                }
+
+                if (act.series_colors && Array.isArray(act.series_colors)) {
+                    const seriesCollection = chart.series;
+                    seriesCollection.load("count");
+                    await context.sync();
+                    for (let i = 0; i < act.series_colors.length; i++) {
+                        if (i < seriesCollection.count) {
+                            const seriesItem = seriesCollection.getItemAt(i);
+                            seriesItem.format.fill.setSolidColor(act.series_colors[i]);
+                        }
+                    }
+                }
+            }
+            else if (act.action === 'add_data_validation') {
+                range.dataValidation.rule = {
+                    list: {
+                        inCellDropDown: true,
+                        source: act.source
+                    }
+                };
+            }
+            else if (act.action === 'set_print_area') {
+                sheet.pageLayout.setPrintArea(range);
+            }
+            else if (act.action === 'apply_filter') {
+                if (act.criterion1 !== undefined && act.column !== undefined) {
+                    sheet.autoFilter.apply(range, act.column, {
+                        filterOn: Excel.FilterOn.custom,
+                        criterion1: act.criterion1
+                    });
+                } else {
+                    sheet.autoFilter.apply(range);
+                }
+            }
+            else if (act.action === 'merge_identical_cells') {
+                const direction = act.direction || "vertical";
+                range.load("values, rowCount, columnCount");
+                await context.sync();
+
+                const values = range.values;
+                const rows = range.rowCount;
+                const cols = range.columnCount;
+
+                if (direction === "vertical") {
+                    for (let c = 0; c < cols; c++) {
+                        let startR = 0;
+                        while (startR < rows) {
+                            let endR = startR;
+                            while (endR + 1 < rows && values[endR][c] === values[endR + 1][c] && values[endR][c] !== "" && values[endR][c] != null) {
+                                endR++;
+                            }
+                            if (endR > startR) {
+                                const subRange = range.getCell(startR, c).getBoundingRect(range.getCell(endR, c));
+                                subRange.merge(false);
+                            }
+                            startR = endR + 1;
+                        }
+                    }
+                } else {
+                    for (let r = 0; r < rows; r++) {
+                        let startC = 0;
+                        while (startC < cols) {
+                            let endC = startC;
+                            while (endC + 1 < cols && values[r][endC] === values[r][endC + 1] && values[r][endC] !== "" && values[r][endC] != null) {
+                                endC++;
+                            }
+                            if (endC > startC) {
+                                const subRange = range.getCell(r, startC).getBoundingRect(range.getCell(r, endC));
+                                subRange.merge(false);
+                            }
+                            startC = endC + 1;
+                        }
+                    }
+                }
+            }
+            else if (act.action === 'modify_cell_lines') {
+                range.load("values");
+                await context.sync();
+
+                const values = range.values;
+                let hasChanges = false;
+
+                for (let r = 0; r < values.length; r++) {
+                    for (let c = 0; c < values[r].length; c++) {
+                        const cellValue = values[r][c];
+                        if (typeof cellValue === 'string' && cellValue.includes('\n')) {
+                            let lines = cellValue.split('\n');
+                            if (act.line_index !== undefined && act.line_index >= 0 && act.line_index < lines.length) {
+                                lines[act.line_index] = (act.prefix || "") + lines[act.line_index] + (act.suffix || "");
+                                values[r][c] = lines.join('\n');
+                                hasChanges = true;
+                            }
+                        }
+                    }
+                }
+                if (hasChanges) {
+                    range.values = values;
+                }
+            }
+            else if (act.action === 'set_number_format' && act.format !== undefined) {
+                range.load("rowCount, columnCount");
+                await context.sync();
+                const formatArray = Array(range.rowCount).fill().map(() => Array(range.columnCount).fill(act.format));
+                range.numberFormat = formatArray;
+            }
+        } catch (err) {
+            console.error("Error executing action:", act, err);
         }
 
         await context.sync();
