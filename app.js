@@ -486,13 +486,7 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
             `;
-            // In agent mode after Excel operations, don't steal focus from Excel
-            // so that Ctrl+Z / Cmd+Z targets the Excel undo stack.
-            // Only focus chat input in ask mode or when no Excel actions ran.
-            if (state.mode === 'ask') {
-                chatInput.focus();
-            }
-            // For agent mode, returnFocusToExcel() is already called in executeExcelActions
+            chatInput.focus();
         }
     }
 
@@ -587,34 +581,6 @@ async function executeExcelActions(actions) {
     // as a separate undo entry in the desktop Excel undo stack.
     for (const act of actions) {
         await executeSingleAction(act);
-    }
-
-    // After all actions complete, return focus to Excel document
-    // so Ctrl+Z / Cmd+Z targets Excel's undo stack, not the add-in pane.
-    returnFocusToExcel();
-}
-
-// Returns focus from the add-in taskpane back to the Excel document
-// so that keyboard shortcuts (Ctrl+Z) target Excel's undo stack.
-function returnFocusToExcel() {
-    try {
-        // Blur the active element in the taskpane
-        if (document.activeElement && document.activeElement !== document.body) {
-            document.activeElement.blur();
-        }
-        // Attempt to programmatically activate the Excel document
-        if (window.Excel && Excel.run) {
-            Excel.run(async (context) => {
-                // Selecting a range forces Excel to take focus
-                const selected = context.workbook.getSelectedRange();
-                selected.select();
-                await context.sync();
-            }).catch(() => {
-                // Silently ignore - this is a best-effort focus return
-            });
-        }
-    } catch (e) {
-        console.warn("returnFocusToExcel:", e);
     }
 }
 
