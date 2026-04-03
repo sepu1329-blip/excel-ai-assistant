@@ -553,29 +553,6 @@ code {
   background-color: var(--surface-color);
 }
 
-/* Attach Image Button */
-.attach-btn {
-  background: none;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.attach-btn:hover {
-  background-color: var(--bg-color);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  transform: scale(1.05);
-}
-
 /* Chat Input Footer (Model Selector) */
 .chat-input-footer {
   padding: 4px 16px 10px;

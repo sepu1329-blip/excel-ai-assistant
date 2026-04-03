@@ -339,26 +339,6 @@ function initApp() {
 
     sendBtn.addEventListener('click', handleSend);
 
-    // Image attach button + hidden file input
-    const attachImageBtn = document.getElementById('attach-image-btn');
-    const imageFileInput = document.getElementById('image-file-input');
-
-    attachImageBtn.addEventListener('click', () => {
-        imageFileInput.click();
-    });
-
-    imageFileInput.addEventListener('change', (e) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-        for (const file of files) {
-            if (file.type.startsWith('image/')) {
-                processImageFile(file);
-            }
-        }
-        // Reset input so the same file can be selected again
-        imageFileInput.value = '';
-    });
-
     // Image paste handling - document level for broader compatibility
     document.addEventListener('paste', (e) => {
         // Only handle when chat view is visible
