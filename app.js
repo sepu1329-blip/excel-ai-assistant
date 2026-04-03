@@ -339,31 +339,61 @@ function initApp() {
 
     sendBtn.addEventListener('click', handleSend);
 
-    // Image paste handling
-    chatInput.addEventListener('paste', (e) => {
+    // Image attach button + hidden file input
+    const attachImageBtn = document.getElementById('attach-image-btn');
+    const imageFileInput = document.getElementById('image-file-input');
+
+    attachImageBtn.addEventListener('click', () => {
+        imageFileInput.click();
+    });
+
+    imageFileInput.addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        for (const file of files) {
+            if (file.type.startsWith('image/')) {
+                processImageFile(file);
+            }
+        }
+        // Reset input so the same file can be selected again
+        imageFileInput.value = '';
+    });
+
+    // Image paste handling - document level for broader compatibility
+    document.addEventListener('paste', (e) => {
+        // Only handle when chat view is visible
+        if (chatView.classList.contains('hidden')) return;
+
         const items = e.clipboardData?.items;
         if (!items) return;
 
+        let hasImage = false;
         for (const item of items) {
             if (item.type.startsWith('image/')) {
-                e.preventDefault();
+                hasImage = true;
                 const file = item.getAsFile();
-                if (!file) continue;
-
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    const dataUrl = ev.target.result;
-                    // Extract base64 and mimeType
-                    const mimeType = file.type;
-                    const base64 = dataUrl.split(',')[1];
-
-                    state.pendingImages.push({ base64, mimeType });
-                    renderImagePreviews();
-                };
-                reader.readAsDataURL(file);
+                if (file) {
+                    processImageFile(file);
+                }
             }
         }
+        if (hasImage) {
+            e.preventDefault();
+        }
     });
+
+    function processImageFile(file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const dataUrl = ev.target.result;
+            const mimeType = file.type;
+            const base64 = dataUrl.split(',')[1];
+
+            state.pendingImages.push({ base64, mimeType });
+            renderImagePreviews();
+        };
+        reader.readAsDataURL(file);
+    }
 
     function renderImagePreviews() {
         imagePreviewContainer.innerHTML = '';
@@ -379,7 +409,7 @@ function initApp() {
 
             const imgEl = document.createElement('img');
             imgEl.src = `data:${img.mimeType};base64,${img.base64}`;
-            imgEl.alt = 'Pasted image';
+            imgEl.alt = '첨부 이미지';
 
             const removeBtn = document.createElement('button');
             removeBtn.className = 'image-preview-remove';
