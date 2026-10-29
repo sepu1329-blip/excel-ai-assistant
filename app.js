@@ -14,7 +14,7 @@ setTimeout(() => {
 // App State
 const state = {
     apiKey: '',
-    model: 'gemini-3-flash-preview',
+    model: 'gemma-4-26b-a4b-it',
     mode: 'ask', // 'ask' or 'agent'
     context: 'cell', // 'cell' or 'sheet'
     chatHistory: [], // store messages
@@ -84,9 +84,12 @@ function initApp() {
     let savedPromptsLocal = null;
     
     try {
-        savedKey = localStorage.getItem('gemini_api_key');
-        savedModel = localStorage.getItem('gemini_model');
-        savedPromptsLocal = localStorage.getItem('gemini_prompts');
+        savedKey = localStorage.getItem('rotemair_api_key');
+        savedModel = localStorage.getItem('rotemair_model');
+        savedPromptsLocal = localStorage.getItem('rotemair_prompts') || localStorage.getItem('gemini_prompts');
+        // Clean up legacy Gemini keys
+        localStorage.removeItem('gemini_api_key');
+        localStorage.removeItem('gemini_model');
     } catch (e) {
         console.warn("Storage access denied:", e);
     }
@@ -107,7 +110,8 @@ function initApp() {
     if (savedKey) {
         state.apiKey = savedKey;
         apiKeyInput.value = savedKey;
-        if (savedModel) {
+        const hasModelOption = savedModel && Array.from(modelSelect.options).some(opt => opt.value === savedModel);
+        if (hasModelOption) {
             state.model = savedModel;
             modelSelect.value = savedModel;
             chatModelSelect.value = savedModel;
@@ -124,14 +128,14 @@ function initApp() {
             state.model = modelSelect.value;
             chatModelSelect.value = state.model; // sync chat model selector
             try {
-                localStorage.setItem('gemini_api_key', key);
-                localStorage.setItem('gemini_model', state.model);
+                localStorage.setItem('rotemair_api_key', key);
+                localStorage.setItem('rotemair_model', state.model);
             } catch (e) {
                 console.warn("Could not save to localStorage:", e);
             }
             showView('chat');
         } else {
-            alert('Please enter a valid API key.');
+            alert('유효한 API Key를 입력해주세요.');
         }
     });
 
@@ -140,7 +144,7 @@ function initApp() {
         state.model = chatModelSelect.value;
         modelSelect.value = state.model; // sync settings dropdown
         try {
-            localStorage.setItem('gemini_model', state.model);
+            localStorage.setItem('rotemair_model', state.model);
         } catch (e) {
             console.warn("Could not save model:", e);
         }
@@ -162,7 +166,7 @@ function initApp() {
         state.chatHistory = [];
         chatHistoryEl.innerHTML = `
             <div class="message system">
-              <p>Chat cleared. Welcome to Gemini AI!</p>
+              <p>대화가 초기화되었습니다. RotemAir AI에 무엇이든 물어보세요!</p>
             </div>
         `;
     });
@@ -281,7 +285,7 @@ function initApp() {
 
     function savePromptsToStorage() {
         try {
-            localStorage.setItem('gemini_prompts', JSON.stringify(state.savedPrompts));
+            localStorage.setItem('rotemair_prompts', JSON.stringify(state.savedPrompts));
         } catch (e) {
             console.warn("Could not save prompts:", e);
         }
@@ -363,6 +367,14 @@ function initApp() {
     });
 
     function processImageFile(file) {
+        if (state.pendingImages.length >= 5) {
+            alert('이미지는 요청당 최대 5장까지 첨부할 수 있습니다.');
+            return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            alert('이미지 크기는 장당 2MiB를 초과할 수 없습니다.');
+            return;
+        }
         const reader = new FileReader();
         reader.onload = (ev) => {
             const dataUrl = ev.target.result;
@@ -465,9 +477,9 @@ function initApp() {
             // 1. Gather context from Excel
             const excelContextData = await getExcelContext(state.context);
             
-            updateLoadingStatus(loadingId, "Gemini AI가 생각 중입니다...");
+            updateLoadingStatus(loadingId, "RotemAir AI가 생각 중입니다...");
 
-            // 2. Call Gemini
+            // 2. Call RotemAir API
             let systemInstruction = "";
             let promptText = "";
 
@@ -516,7 +528,7 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
                 promptText = `Context:\n${excelContextData}\n\nUser Request:\n${text}`;
             }
 
-            const responseText = await callGeminiAPI(systemInstruction, promptText, currentAbortController.signal, images);
+            const responseText = await callRotemAirAPI(systemInstruction, promptText, currentAbortController.signal, images);
 
             // Remove loading
             document.getElementById(loadingId)?.remove();
@@ -527,8 +539,12 @@ DO NOT wrap the JSON in markdown code blocks like \`\`\`json. Just output the ra
                 updateLoadingStatus(loadingId, "AI 응답을 분석하고 엑셀 작업을 준비 중입니다...");
                 // Agent mode: Attempt to parse JSON and execute
                 try {
-                    // Try to clean markdown block if the AI ignored instructions
-                    let cleanJsonStr = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    // Try to clean thinking blocks and markdown blocks if the AI included them
+                    let cleanJsonStr = responseText
+                        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+                        .replace(/```json/gi, '')
+                        .replace(/```/g, '')
+                        .trim();
                     let parsedJson = JSON.parse(cleanJsonStr);
 
                     // Normalize to an array
@@ -931,43 +947,57 @@ async function executeSingleAction(act) {
     });
 }
 
-// ============== GEMINI API LOGIC ==============
+// ============== ROTEMAIR API LOGIC ==============
 
-async function callGeminiAPI(systemInstruction, userPrompt, signal, images) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${state.model}:generateContent?key=${state.apiKey}`;
+const ROTEMAIR_API_ENDPOINT = 'https://air.rotem.co.kr/external-api/model/v1/chat/completions';
 
-    // Build parts array: text first, then images
-    const parts = [];
-    if (userPrompt) {
-        parts.push({ text: userPrompt });
+async function callRotemAirAPI(systemInstruction, userPrompt, signal, images) {
+    const messages = [];
+
+    if (systemInstruction) {
+        messages.push({
+            role: 'system',
+            content: systemInstruction
+        });
     }
+
     if (images && images.length > 0) {
+        const contentParts = [];
+        if (userPrompt) {
+            contentParts.push({
+                type: 'text',
+                text: userPrompt
+            });
+        }
         images.forEach(img => {
-            parts.push({
-                inline_data: {
-                    mime_type: img.mimeType,
-                    data: img.base64
+            contentParts.push({
+                type: 'image_url',
+                image_url: {
+                    url: `data:${img.mimeType};base64,${img.base64}`
                 }
             });
+        });
+        messages.push({
+            role: 'user',
+            content: contentParts
+        });
+    } else {
+        messages.push({
+            role: 'user',
+            content: userPrompt
         });
     }
 
     const body = {
-        contents: [{
-            role: "user",
-            parts: parts
-        }],
-        systemInstruction: {
-            parts: [{ text: systemInstruction }]
-        },
-        generationConfig: {
-            temperature: 0.1
-        }
+        model: state.model,
+        messages: messages,
+        temperature: 0.1
     };
 
-    const response = await fetch(endpoint, {
+    const response = await fetch(ROTEMAIR_API_ENDPOINT, {
         method: 'POST',
         headers: {
+            'Authorization': `Bearer ${state.apiKey}`,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(body),
@@ -975,10 +1005,29 @@ async function callGeminiAPI(systemInstruction, userPrompt, signal, images) {
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || "Failed to fetch from Gemini API");
+        let errorHint = '';
+        if (response.status === 401) errorHint = ' (인증키 확인 필요)';
+        else if (response.status === 403) errorHint = ' (모델·사용 권한 확인 필요)';
+        else if (response.status === 429) errorHint = ' (호출 한도 초과 확인 필요)';
+
+        let detailMessage = '';
+        try {
+            const errorData = await response.json();
+            detailMessage = errorData.error?.message || errorData.message || errorData.detail || '';
+        } catch (_) {
+            // Ignore JSON parse failure on error body
+        }
+
+        const fullMessage = detailMessage
+            ? `RotemAir API 오류 (${response.status}${errorHint}): ${detailMessage}`
+            : `RotemAir API 호출 실패 (HTTP ${response.status}${errorHint})`;
+        throw new Error(fullMessage);
     }
 
     const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+    const content = data.choices?.[0]?.message?.content;
+    if (typeof content !== 'string') {
+        throw new Error('RotemAir API 응답에서 텍스트를 찾을 수 없습니다.');
+    }
+    return content;
 }

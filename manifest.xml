@@ -10,12 +10,13 @@
   <ProviderName>sepu13</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Press AI"/>
-  <Description DefaultValue="An AI assistant powered by Gemini API for Excel."/>
+  <Description DefaultValue="An AI assistant powered by RotemAir API for Excel."/>
   <IconUrl DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/icon32.png"/>
   <HighResolutionIconUrl DefaultValue="https://sepu1329-blip.github.io/excel-ai-assistant/assets/icon80.png"/>
   <SupportUrl DefaultValue="https://github.com/sepu1329-blip/excel-ai-assistant"/>
   <AppDomains>
     <AppDomain>https://sepu1329-blip.github.io</AppDomain>
+    <AppDomain>https://air.rotem.co.kr</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Workbook"/>
@@ -80,7 +81,7 @@
         <bt:String id="TaskpaneButton.Label" DefaultValue="Press AI"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Your AI assistant powered by Gemini API."/>
+        <bt:String id="GetStarted.Description" DefaultValue="Your AI assistant powered by RotemAir API."/>
         <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to Show the Press AI Assistant"/>
       </bt:LongStrings>
     </Resources>
